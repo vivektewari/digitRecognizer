@@ -7,13 +7,13 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 
 
 def toImage(savePath):
-    train = pd.read_csv(dataPath / 'train.csv',nrows=100)
+    train = pd.read_csv(dataPath / 'train.csv',nrows=1000)
     plt.gray()
     for row in range(train.shape[0]):
         all = list(train.iloc[row])
         label = all[0]
         data = np.array(all[1:])
-        data=np.where(data>100,255,0) # add step to preprocess the data
+        #data=np.where(data>100,255,0) # add step to preprocess the data
         data = data.reshape((28, 28))
         fig = plt.figure()
         plt.imshow(data)

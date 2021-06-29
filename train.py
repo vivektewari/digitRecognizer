@@ -16,14 +16,15 @@ s = get_dict_from_class(DataLoad1)
 data_load = DigitData(**get_dict_from_class(DataLoad1))
 criterion = BCELoss()
 model = FeatureExtractor(**get_dict_from_class(Model1))
+model.mode_train = 1
 # model = FCLayered(**get_dict_from_class(Model1))
 if False:
-    checkpoint = torch.load(str(saveDirectory) + '/featureExtr_4_100.pth')
+    checkpoint = torch.load(str(saveDirectory) + '/featureExtr_4_61.pth')
     model.load_state_dict(checkpoint)
     model.eval()
-optimizer = optim.Adam(model.parameters(), lr=0.005)
+optimizer = optim.Adam(model.parameters(), lr=lr)
 
-skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=randSeed)
+skf = StratifiedKFold(n_splits=15, shuffle=True, random_state=randSeed)
 train = data_load.data
 train["fold"] = -1
 
@@ -44,12 +45,12 @@ print("[fold {}] train: {}, val: {}".format(use_fold, len(train_file), len(val_f
 loaders = {
     "train": DataLoader(DigitData(data_frame=train_file, **get_dict_from_class(DataLoad1)),
                         batch_size=512,
-                        shuffle=False,
+                        shuffle=True,
                         num_workers=4,
                         pin_memory=True,
                         drop_last=False),
     "valid": DataLoader(DigitData(data_frame=val_file, **get_dict_from_class(DataLoad1)),
-                        batch_size=512,
+                        batch_size=1024,
                         shuffle=False,
                         num_workers=4,
                         pin_memory=True,
@@ -76,7 +77,7 @@ runner.train(
     loaders=loaders,
     optimizer=optimizer,
 
-    num_epochs=40,
+    num_epochs=30,
     verbose=True,
     logdir=f"fold0",
     callbacks=callbacks,

@@ -16,7 +16,7 @@ hold_dict = get_dict_from_class(DataLoad1)
 hold_dict['path'] = test_data
 
 model = FeatureExtractor(**get_dict_from_class(Model1))
-checkpoint = torch.load(saveDirectory / 'featureExtr_4_20.pth')
+checkpoint = torch.load(saveDirectory / 'featureExtr_4_16.pth')
 model.load_state_dict(checkpoint, strict=True)
 model.eval()
 collects = []

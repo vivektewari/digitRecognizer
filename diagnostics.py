@@ -16,8 +16,8 @@ checkpoint = torch.load(saveDirectory / 'featureExtr_4_30.pth')
 # weightMatrix = checkpoint['fc1.weight']
 # weightMatrix2 = checkpoint['fc2.weight']
 
-chan = [10, 10]
-side = [(8,8),( 10,9)]
+chan = [5, 5]
+side = [(8,6),( 10,8)]
 
 for j in range(2):
     weightMatrix = checkpoint['conv_blocks.' + str(j) + '.conv1.weight']
@@ -29,15 +29,17 @@ for j in range(2):
     plt.title(str(_min)+"_"+str(_max))
     fig.savefig('/home/pooja/PycharmProjects/digitRecognizer/weightDist/0_reference' + str(j) + '.png')
     plt.close(fig)
+    fig = plt.figure()
     for i in range(chan[j]):
 
         data = weightMatrix[i].flatten(start_dim=1, end_dim=-1)
         data = data.reshape(side[j])
-        fig = plt.figure()
+        fig.add_subplot(1, 5, i + 1)
         plt.imshow(data,aspect='auto', vmin = _min, vmax = _max)
         plt.autoscale('False')
-        fig.savefig('/home/pooja/PycharmProjects/digitRecognizer/weightDist/conv'+str(j)+'_'+str(i)+'.png')
-        plt.close(fig)
+
+    fig.savefig('/home/pooja/PycharmProjects/digitRecognizer/weightDist/conv'+str(j)+'.png')
+    plt.close(fig)
 # for i in range(30):
 #     fig = plt.figure()
 #     plt.imshow(torch.reshape(data[i],shape=(28,28)),aspect='auto')
