@@ -11,7 +11,8 @@ saveDirectory = root / 'outputs'
 device = 'cpu'
 startTime = time.time()
 test_data = dataPath / 'test.csv'
-
+lr = 0.05
+epoch = 40
 
 class Model1:
     # layer 28,28, pa 29,29 c 27,27 p 9,9 ,pa 10,10 c 5,5 p 1,1

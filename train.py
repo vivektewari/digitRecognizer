@@ -21,7 +21,7 @@ if False:
     checkpoint = torch.load(str(saveDirectory) + '/featureExtr_4_100.pth')
     model.load_state_dict(checkpoint)
     model.eval()
-optimizer = optim.Adam(model.parameters(), lr=0.005)
+optimizer = optim.Adam(model.parameters(), lr=lr)
 
 skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=randSeed)
 train = data_load.data
@@ -76,7 +76,7 @@ runner.train(
     loaders=loaders,
     optimizer=optimizer,
 
-    num_epochs=40,
+    num_epochs=epoch,
     verbose=True,
     logdir=f"fold0",
     callbacks=callbacks,
