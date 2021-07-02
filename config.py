@@ -1,19 +1,20 @@
 import time
 from pathlib import Path
-
-root = Path('/home/pooja/PycharmProjects/digitRecognizer')
+import random
+root = Path('/home/pooja/PycharmProjects/digitRecognizer/rough/shift')
+image_path = root / 'images'
 dataPath = root / 'data'
 dataCreated = root / 'data' / 'dataCreated'
 metricSheetPath = root / 'metricSheet.csv'
-devData = dataCreated / 'dev.csv'
-holdData = dataCreated / 'holdout.csv'
+devData = root / 'data' / 'dataCreated' / 'dev.csv'
+holdData = root / 'data' / 'dataCreated' / 'holdout.csv'
 saveDirectory = root / 'outputs'
 device = 'cpu'
 startTime = time.time()
 test_data = dataPath / 'test.csv'
 lr = 0.05
 epoch = 40
-
+random.seed(23)
 class Model1:
     # layer 28,28, pa 29,29 c 27,27 p 9,9 ,pa 10,10 c 5,5 p 1,1
 

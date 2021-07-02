@@ -3,7 +3,7 @@ import pandas as pd
 from config import *
 from funcs import toImage,updateMetricsSheet
 import random
-stage='imageExtraction' # 'randomModel'
+stage='holdOutSample' # 'randomModel'
 if stage=='imageExtraction':
     toImage(dataPath / 'toImage')#dataPath / 'toImage'
 elif stage=='holdOutSample':
@@ -22,6 +22,7 @@ elif stage=='randomModel':
     predDev=[random.randint(0,9) for i in range(dev.shape[0])]
     predHold = [random.randint(0, 9) for i in range(holdOut.shape[0])]
     updateMetricsSheet(dev['label'],predDev,holdOut['label'],predHold,modelName='random',force=True)
+
 
 
 
