@@ -2,10 +2,14 @@ from torch.utils.data import Dataset, DataLoader
 import pandas as pd
 import torch
 import numpy as np
-
+from config import maxrows
 class DigitData(Dataset):
     def __init__(self, data_frame=None, label=None, pixel_col=None, reshape_pixel=None, path=None):
-        if data_frame is None: data_frame = pd.read_csv(path,nrows=10000)  # ,nrows=1000
+        if data_frame is None:
+            if maxrows is None:
+                data_frame = pd.read_csv(path, nrows=maxrows)
+            else:
+                data_frame = pd.read_csv(path,nrows=maxrows)
         self.data = data_frame
         self.data.reset_index(inplace=True, drop=True)
         self.labelCol = label

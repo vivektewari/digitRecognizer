@@ -7,7 +7,7 @@ stage='holdOutSample' # 'randomModel'
 if stage=='imageExtraction':
     toImage(dataPath / 'toImage')#dataPath / 'toImage'
 elif stage=='holdOutSample':
-    train = pd.read_csv(dataPath / 'train.csv')
+    train = pd.read_csv(dataPath / 'newData.csv')
     train['index']=range(train.shape[0])
     orderedCols=list(train.columns[-1:])+list(train.columns[0:-1])
     train=train[orderedCols]
