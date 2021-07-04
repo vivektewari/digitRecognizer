@@ -113,7 +113,7 @@ class FeatureExtractor(nn.Module):
         self.fc1 = nn.Linear(conv_dim, fc1_p[0], bias=True)
         self.fc2 = nn.Linear(fc1_p[0], fc1_p[1], bias=True)
         self.activation_l = torch.nn.ReLU()
-        self.activation = torch.nn.Softmax(dim=0)
+        self.activation = torch.nn.Softmax(dim=1)
         self.init_weight()
         self.dropout = nn.Dropout(0.3)
 

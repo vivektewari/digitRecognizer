@@ -21,7 +21,7 @@ data[pixel] = 0
 dataCreation = DataCreation(data_path=dataPath, image_path_=image_path)
 # dataCreation.circles_and_rectngles(data)
 data = pd.read_csv(str(dataPath) + '/train.csv')
-dataCreation.shifter( data, data_count=10000, size=(112, 112),size2=(28,28))
+#dataCreation.shifter( data, data_count=10000, size=(112, 112),size2=(28,28))
 dataCreation = DataCreation(data_path='/home/pooja/PycharmProjects/digitRecognizer/rough/scale/data', image_path_='/home/pooja/PycharmProjects/digitRecognizer/rough/scale/images')
 data=dataCreation.scaler( data, data_count=10000, size=(112, 112),size2=(28,28), scales=4)
 dataCreation = DataCreation(data_path='/home/pooja/PycharmProjects/digitRecognizer/rough/shiftScale/data', image_path_='/home/pooja/PycharmProjects/digitRecognizer/rough/shiftScale/images')

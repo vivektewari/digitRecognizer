@@ -16,7 +16,7 @@ config_id = str(os.getcwd()).split()[-1]
 startTime = time.time()
 test_data = dataPath / 'test.csv'
 lr = 0.05
-epoch = 2
+epoch = 20
 maxrows = 10000
 random.seed(23)
 class Model1:
