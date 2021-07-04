@@ -10,8 +10,6 @@ import torch
 
 random.seed(24)
 def get_inference(notes= ""):
-    s = get_dict_from_class(DataLoad1)
-    data_load = DigitData(**get_dict_from_class(DataLoad1))
     dev_dict = get_dict_from_class(DataLoad1)
     hold_dict = get_dict_from_class(DataLoad1)
     hold_dict['path'] = holdData

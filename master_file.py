@@ -11,7 +11,7 @@ temp.to_csv(metricSheetPath)
 def iterator(directory):
     os.chdir(directory)
     importlib.reload(sys.modules['config'])
-    # importlib.reload(sys.modules['start']) #only needed first time
+    importlib.reload(sys.modules['start']) # only needed first time
     importlib.reload(sys.modules['train'])
     importlib.reload(sys.modules['inference'])
     inference.get_inference(directory)

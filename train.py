@@ -23,7 +23,7 @@ if False:
     model.eval()
 optimizer = optim.Adam(model.parameters(), lr=lr)
 
-skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=randSeed)
+skf = StratifiedKFold(n_splits=15, shuffle=True, random_state=randSeed)
 train = data_load.data
 train["fold"] = -1
 
