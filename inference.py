@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 import torch
 
 random.seed(24)
-def get_inference(notes= ""):
+def get_inference(Model1,DataLoad1,holdData,notes= ""):
     dev_dict = get_dict_from_class(DataLoad1)
     hold_dict = get_dict_from_class(DataLoad1)
     hold_dict['path'] = holdData
@@ -50,4 +50,4 @@ def get_inference(notes= ""):
         looper += 1
     updateMetricsSheet(*collects, modelName=model_name, force=True,extraInfo=notes)
 if __name__ == "__main__":
-    get_inference()
+    get_inference(Model1,DataLoad1,holdData)

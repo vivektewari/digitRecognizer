@@ -13,23 +13,23 @@ class ConvBlock(nn.Module):
 
         self.conv1 = nn.Conv2d(
             in_channels=in_channels,
-            out_channels=int(out_channels / 3),
-            kernel_size=tuple(np.array(kernel_size) + np.array([1, -1])),
+            out_channels=max(int(out_channels / 3),1),
+            kernel_size=(1,1),#tuple(np.array(kernel_size) + np.array([1, -1])),
             stride=stride,
             padding=tuple(np.array(padding) + np.array([1, 0])),
             bias=False)
 
         self.conv2 = nn.Conv2d(
             in_channels=in_channels,
-            out_channels=int(out_channels / 3),
-            kernel_size=tuple(np.array(kernel_size) + np.array([-1, 1])),
+            out_channels=max(int(out_channels / 3),1),
+            kernel_size=(1,1),#tuple(np.array(kernel_size) + np.array([-1, 1])),
             stride=stride,
             padding=tuple(np.array(padding) + np.array([0, 1])),
             bias=False)
         self.conv3 = nn.Conv2d(
             in_channels=in_channels,
-            out_channels=int(out_channels / 3) + 1,
-            kernel_size=tuple(np.array(kernel_size) + np.array([0, 0])),
+            out_channels=max(int(out_channels / 3),1) + 1,
+            kernel_size=(1,1),#tuple(np.array(kernel_size) + np.array([0, 0])),
             stride=stride,
             padding=tuple(np.array(padding) + np.array([0, 0])),
             bias=False)
@@ -101,7 +101,6 @@ class FeatureExtractor(nn.Module):
         self.mode_train = 0
 
         last_channel = start_channel
-        last_layer_size = self.input_image_dim
         for i in range(self.num_blocks):
             self.conv_blocks.append(ConvBlock(in_channels=last_channel, out_channels=channels[i],
                                               kernel_size=(convs[i], convs[i]), stride=(strides[i], strides[i]),
@@ -110,9 +109,15 @@ class FeatureExtractor(nn.Module):
 
         # getting dim of output of conv blo
         conv_dim = self.get_conv_output_dim()
-        if self.fc1_p is not None:
-            self.fc1 = nn.Linear(conv_dim, fc1_p[0], bias=True)
+        if self.fc1_p[0] is not None:
+            self.fc1 = nn.Linear(conv_dim[0], fc1_p[0], bias=True)
             self.fc2 = nn.Linear(fc1_p[0], fc1_p[1], bias=True)
+        else :
+            self.conv_blocks.append(ConvBlock(in_channels=last_channel, out_channels=fc1_p[1],
+                                              kernel_size=(1, 1), stride=(1, 1),
+                                              pool_size=(conv_dim[1][-2],conv_dim[1][-1]), padding=0))
+
+
         self.activation_l = torch.nn.ReLU()
         self.activation = torch.nn.Softmax(dim=1)
         self.init_weight()
@@ -121,7 +126,7 @@ class FeatureExtractor(nn.Module):
     def get_conv_output_dim(self):
         input_ = torch.Tensor(np.zeros((1,1)+self.input_image_dim))
         x = self.cnn_feature_extractor(input_)
-        return len(x.flatten())
+        return len(x.flatten()),x.shape
 
     @staticmethod
     def init_layer(layer):
@@ -136,7 +141,7 @@ class FeatureExtractor(nn.Module):
             self.init_layer(self.conv_blocks[i].conv1)
             self.init_layer(self.conv_blocks[i].conv2)
             self.init_layer(self.conv_blocks[i].conv3)
-        if self.fc1_p is not None:
+        if self.fc1_p[0] is not None:
             self.init_layer(self.fc1)
             self.init_layer(self.fc2)
         # init_layer(self.conv2)
@@ -145,7 +150,7 @@ class FeatureExtractor(nn.Module):
 
     def cnn_feature_extractor(self, x):
         # input 501*64
-        for i in range(self.num_blocks):
+        for i in range(len(self.conv_blocks)):
             x = self.conv_blocks[i](x)
             # x_70=torch.quantile(x, 0.7)
             # x_50 = torch.quantile(x, 1)
@@ -160,13 +165,15 @@ class FeatureExtractor(nn.Module):
             x = x.flatten(start_dim=1, end_dim=-1)
             return self.activation(x)
 
-        x = self.activation_l(x)
-
-        x = self.activation_l(self.fc1(x.flatten(start_dim=1, end_dim=-1)))
-        if self.mode_train == 1:
-            x = self.dropout(x)
-        x = x / torch.max(x)
-        x = self.activation(self.fc2(x))
+        x = x.flatten(start_dim=1, end_dim=-1)
+        if self.fc1_p[0] is not None:
+            x = self.activation_l(x)
+            x = self.activation_l(self.fc1(x))
+            if self.mode_train == 1:
+                x = self.dropout(x)
+            x = x / torch.max(x)
+            x = self.fc2(x)
+        x = self.activation(x)
 
         return x
 

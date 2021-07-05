@@ -63,9 +63,10 @@ def get_dict_from_class(class1):
 
 
 class DataCreation:
-    def __init__(self, data_path=dataPath, image_path_=image_path):
+    def __init__(self, data_path=dataPath, image_path_=None):
         self.data_path = data_path
         self.image_path = image_path_
+        self.to_csv = True
 
     def darker(self, data):
 
@@ -100,6 +101,7 @@ class DataCreation:
                 pixs = ['pixel' + str(startRow * 28 + startCol + k[0] * 28 + k[1]) for k in
                         combinations([i for i in range(length)], 2)]
             data.iloc[i][pixs] = 255
+
             ar = np.array(data.iloc[i][pixel]).reshape((28, 28))
             fig = plt.figure()
             plt.imshow(ar)
@@ -109,10 +111,11 @@ class DataCreation:
         data.to_csv(str(dataPath) + '/newData.csv')
 
     def get_fig(self, data, img_no, label):
-        fig = plt.figure()
-        plt.imshow(data.astype(int))
-        fig.savefig(str(self.image_path) + '/' + str(img_no) + "_" + str(label) + '.png')
-        plt.close(fig)
+        if self.image_path is not None:
+            fig = plt.figure()
+            plt.imshow(data.astype(int))
+            fig.savefig(str(self.image_path) + '/' + str(img_no) + "_" + str(label) + '.png')
+            plt.close(fig)
 
     def black_image(self, data_count=100, size=(112, 112), ret=True):
         pixel = ['pixel' + str(i) for i in range(size[0] * size[1])]
@@ -141,7 +144,8 @@ class DataCreation:
             data_big.iloc[i][pixel] = temp.flatten()
             data_big.iloc[i]['label'] = data.iloc[i]['label']
             self.get_fig(temp, i, data.iloc[i]['label'])
-        data_big.to_csv(str(self.data_path) + '/newData.csv')
+        if self.to_csv:
+            data_big.to_csv(str(self.data_path) + '/newData.csv')
         return data_big
 
     def scaler(self, data, data_count=100, size=(112, 112),size2=(28,28),scales=4):
@@ -158,5 +162,6 @@ class DataCreation:
             data_big.iloc[i][pixel] = temp.flatten()
             data_big.iloc[i]['label'] = data.iloc[i]['label']
             self.get_fig(temp, i, data.iloc[i]['label'])
-        data_big.to_csv(str(self.data_path) + '/newData.csv')
+        if self.to_csv:
+            data_big.to_csv(str(self.data_path) + '/newData.csv')
         return data_big
