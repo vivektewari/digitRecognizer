@@ -110,8 +110,9 @@ class FeatureExtractor(nn.Module):
 
         # getting dim of output of conv blo
         conv_dim = self.get_conv_output_dim()
-        self.fc1 = nn.Linear(conv_dim, fc1_p[0], bias=True)
-        self.fc2 = nn.Linear(fc1_p[0], fc1_p[1], bias=True)
+        if self.fc1_p is not None:
+            self.fc1 = nn.Linear(conv_dim, fc1_p[0], bias=True)
+            self.fc2 = nn.Linear(fc1_p[0], fc1_p[1], bias=True)
         self.activation_l = torch.nn.ReLU()
         self.activation = torch.nn.Softmax(dim=1)
         self.init_weight()
@@ -135,8 +136,9 @@ class FeatureExtractor(nn.Module):
             self.init_layer(self.conv_blocks[i].conv1)
             self.init_layer(self.conv_blocks[i].conv2)
             self.init_layer(self.conv_blocks[i].conv3)
-        self.init_layer(self.fc1)
-        self.init_layer(self.fc2)
+        if self.fc1_p is not None:
+            self.init_layer(self.fc1)
+            self.init_layer(self.fc2)
         # init_layer(self.conv2)
         # init_bn(self.bn1)
         # init_bn(self.bn2)
@@ -154,7 +156,12 @@ class FeatureExtractor(nn.Module):
 
     def forward(self, input_):
         x = self.cnn_feature_extractor(input_ / 255)
+        if self.fc1_p is None:
+            x = x.flatten(start_dim=1, end_dim=-1)
+            return self.activation(x)
+
         x = self.activation_l(x)
+
         x = self.activation_l(self.fc1(x.flatten(start_dim=1, end_dim=-1)))
         if self.mode_train == 1:
             x = self.dropout(x)

@@ -15,7 +15,7 @@ device = 'cpu'
 config_id = str(os.getcwd()).split()[-1]
 startTime = time.time()
 test_data = dataPath / 'test.csv'
-lr = 0.05
+lr = 0.001
 epoch = 20
 maxrows = 10000
 random.seed(23)
@@ -46,12 +46,40 @@ class Model1:
     strides = [1,1, 1,1]
     pools = [2, 2,1]
     fc1_p = [256, 10]#1040
+# new 0.1
+    channels = [31 , 65 ]
+    input_image_dim = (28, 28)
+    start_channel = 1
+    convs = [5, 5, 3]  # 5,5,3
+    pads = [0, 0, 1]
+    strides = [1, 1, 1, 1]
+    pools = [2, 2, 1]
+    fc1_p = [2560, 10]  # 1040
+# new 0.1
+    channels = [31 , 65 ]
+    input_image_dim = (28, 28)
+    start_channel = 1
+    convs = [5, 5, 3]  # 5,5,3
+    pads = [0, 0, 1]
+    strides = [1, 1, 1, 1]
+    pools = [2, 1, 1]
+    fc1_p = [2560, 10]  # 1040
+
+    channels = [31, 65,10]
+    input_image_dim = (28*4, 28*4)
+    start_channel = 1
+    convs = [5, 5, 3]  # 5,5,3
+    pads = [0, 0, 1]
+    strides = [1, 1, 1, 1]
+    pools = [2, 2, 4]
+    fc1_p = [256, 10] # None # 1040
 
 
 
 class DataLoad1:
     # data_frame = None
     label = 'label'
-    pixel_col = ['pixel' + str(i) for i in range(28 * 28)]
-    reshape_pixel = (28, 28)
+    reshape_pixel = (28 * 4, 28 * 4)
+    pixel_col = ['pixel' + str(i) for i in range(reshape_pixel[0] * reshape_pixel[1])]
+
     path = devData
