@@ -31,6 +31,7 @@ dataCreation.shifter( data, data_count=10000, size=(112*4, 112*4),size2=(28*4,28
 #darker(data)
 
 
-
+dataCreation = DataCreation(data_path='/home/pooja/PycharmProjects/digitRecognizer/rough/scale/data', image_path_='/home/pooja/PycharmProjects/digitRecognizer/rough/localization/images')
+dataCreation.shifter( data, data_count=5000, size=(28, 28))
 
 
