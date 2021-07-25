@@ -165,3 +165,53 @@ class DataCreation:
         if self.to_csv:
             data_big.to_csv(str(self.data_path) + '/newData.csv')
         return data_big
+
+    def coords(self,data):
+
+            x,y = np.argmax(data,axis=0),np.argmax(data,axis=1)
+
+            x2, y2 = np.argmax( np.flip(data, axis=0), axis=0), np.argmax( np.flip(data, axis=1), axis=1)
+            x1,y1=min((np.trim_zeros(x))),min((np.trim_zeros(y)))
+            x2, y2 = min((np.trim_zeros(x2))),min((np.trim_zeros(y2)))
+            x1,y1,x2,y2 = x1, y1, data.shape[0] - x2-1, data.shape[1] - y2-1
+            return [x1,y1,x2,y2]
+    def draw_box(self,data,x1=0,y1=0,x2=0,y2=0,dim=1,color_intensity=200):
+        data[x1, y1:y2, dim], data[x2, y1:y2, dim], data[x1:x2, y1,dim], data[x1:x2, y2, dim] = color_intensity, \
+                                                             color_intensity ,color_intensity,color_intensity
+        return data
+
+
+
+
+
+
+
+
+    def create_localization(self,data, data_count=10, size=(28, 28)):
+        pixel = ['pixel' + str(i) for i in range(size[0] * size[1])]
+        for i in range(data_count):
+            data_temp=data.iloc[i]
+            temp=np.array(data.iloc[i][pixel]).reshape(size)
+            temp=np.where(temp>0,225,0)
+            x1,y1,x2,y2=self.coords(temp)
+            if len(temp.shape)<3 :
+                temp=np.expand_dims(temp,axis=2)
+                temp=np.concatenate((temp,np.zeros(temp.shape),np.zeros(temp.shape)),axis=2)
+            temp= self.draw_box(temp,x1,y1,x2,y2)
+            cv2.imwrite(self.image_path +'/'+str(i)+'_'+str(data_temp['label'])+".png", temp)
+
+
+
+
+
+
+if __name__ == "__main__":
+    import unittest
+    class test_DataCreation():#unittest.TestCase
+        def __init__(self):
+            self.obj=DataCreation(image_path_='/home/pooja/PycharmProjects/digitRecognizer/test_rough/images')
+        def test_create_localization(self):
+            file=pd.read_csv('/home/pooja/PycharmProjects/digitRecognizer/data/dataCreated/holdout.csv')
+            fin=self.obj.create_localization(data=file,size=(28,28))
+    c = test_DataCreation()
+    c.test_create_localization()

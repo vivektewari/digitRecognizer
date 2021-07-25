@@ -11,28 +11,6 @@ class ConvBlock(nn.Module):
         self.pool_size = pool_size
         self.in_channels = in_channels
 
-        self.conv1 = nn.Conv2d(
-            in_channels=in_channels,
-            out_channels=max(int(out_channels / 3),1),
-            kernel_size=(1,1),#tuple(np.array(kernel_size) + np.array([1, -1])),
-            stride=stride,
-            padding=tuple(np.array(padding) + np.array([1, 0])),
-            bias=False)
-
-        self.conv2 = nn.Conv2d(
-            in_channels=in_channels,
-            out_channels=max(int(out_channels / 3),1),
-            kernel_size=(1,1),#tuple(np.array(kernel_size) + np.array([-1, 1])),
-            stride=stride,
-            padding=tuple(np.array(padding) + np.array([0, 1])),
-            bias=False)
-        self.conv3 = nn.Conv2d(
-            in_channels=in_channels,
-            out_channels=max(int(out_channels / 3),1) + 1,
-            kernel_size=(1,1),#tuple(np.array(kernel_size) + np.array([0, 0])),
-            stride=stride,
-            padding=tuple(np.array(padding) + np.array([0, 0])),
-            bias=False)
 
         self.conv = nn.Conv2d(
             in_channels=in_channels,
@@ -48,45 +26,14 @@ class ConvBlock(nn.Module):
     def forward(self, input1, pool_size=None, pool_type='max'):
         if pool_size is None: pool_size = self.pool_size
         x = input1
-        self.in_channels = 13
-        if self.in_channels == 1:
-            x1 = F.relu_(self.conv1(input1))  # self.bn1(
-            x2 = F.relu_(self.conv2(input1))
-            x3 = F.relu_(self.conv3(input1))
-        else:
-            x = F.relu_(self.conv(input1))
+
+        x = F.relu_(self.conv(input1))
         # x = F.relu_(self.bn2(self.conv2(x)))
         if pool_type == 'max':
-            if self.in_channels == 1:
-                # pool_size = tuple(np.array(self.pool_size) + np.array([1, -1]))
-                x1 = F.max_pool2d(x1, kernel_size=pool_size)
-                # pool_size = tuple(np.array(self.pool_size) + np.array([-1, 1]))
-
-                x2 = F.max_pool2d(x2, kernel_size=pool_size)
-                x3 = F.max_pool2d(x3, kernel_size=pool_size)
-            else:
-                x = F.max_pool2d(x, kernel_size=pool_size)
-                return x
-
-        elif pool_type == 'avg':
-            if self.in_channels == 1:
-                x1 = F.avg_pool2d(x1, kernel_size=pool_size)
-                # pool_size = tuple(np.array(self.pool_size) + np.array([-1, 1]))
-
-                x2 = F.avg_pool2d(x2, kernel_size=pool_size)
-                x3 = F.avg_pool2d(x3, kernel_size=pool_size)
-            else:
-                x = F.avg_pool2d(x, kernel_size=pool_size)
+            x = F.max_pool2d(x, kernel_size=pool_size)
             return x
-        elif pool_type == 'avg+max':
-            x1 = F.avg_pool2d(x, kernel_size=pool_size)
-            x2 = F.max_pool2d(x, kernel_size=pool_size)
-            x = x1 + x2
-        elif pool_type == 'none':
-            d = 0
-        else:
-            raise Exception('Incorrect argument!')
-        return torch.cat([x1, x2, x3], dim=1)
+
+
 
 
 class FeatureExtractor(nn.Module):
@@ -94,7 +41,7 @@ class FeatureExtractor(nn.Module):
                  convs=[4], strides=[1], pools=[2], pads=[1], fc1_p=[10, 10]):
         super().__init__()
         self.num_blocks = len(channels)
-        self.start_channel = channels[0]
+        if self.num_blocks>0 :self.start_channel = channels[0]
         self.conv_blocks = nn.ModuleList()
         self.input_image_dim = input_image_dim
         self.fc1_p = fc1_p
@@ -138,9 +85,7 @@ class FeatureExtractor(nn.Module):
     def init_weight(self):
         for i in range(self.num_blocks):
             self.init_layer(self.conv_blocks[i].conv)
-            self.init_layer(self.conv_blocks[i].conv1)
-            self.init_layer(self.conv_blocks[i].conv2)
-            self.init_layer(self.conv_blocks[i].conv3)
+
         if self.fc1_p[0] is not None:
             self.init_layer(self.fc1)
             self.init_layer(self.fc2)
@@ -150,7 +95,7 @@ class FeatureExtractor(nn.Module):
 
     def cnn_feature_extractor(self, x):
         # input 501*64
-        for i in range(len(self.conv_blocks)):
+        for i in range(self.num_blocks):
             x = self.conv_blocks[i](x)
             # x_70=torch.quantile(x, 0.7)
             # x_50 = torch.quantile(x, 1)
