@@ -46,3 +46,4 @@ class Model5:
     strides = [1,1, 1,1]
     pools = [2, 2,1]
     fc1_p = [None, 10]#1040
+

@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import gc, random, cv2
 from itertools import permutations, combinations
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from commonFuncs import *
 import torch
 
 
@@ -181,24 +182,22 @@ class DataCreation:
         return data
 
 
-
-
-
-
-
-
     def create_localization(self,data, data_count=10, size=(28, 28)):
+        ret_data = data[0:data_count]
+        ret_data['localisation'] = ""
         pixel = ['pixel' + str(i) for i in range(size[0] * size[1])]
         for i in range(data_count):
             data_temp=data.iloc[i]
             temp=np.array(data.iloc[i][pixel]).reshape(size)
             temp=np.where(temp>0,225,0)
             x1,y1,x2,y2=self.coords(temp)
+            ret_data.loc[i,['localisation']] = packing.pack([x1,y1,x2,y2])
             if len(temp.shape)<3 :
                 temp=np.expand_dims(temp,axis=2)
                 temp=np.concatenate((temp,np.zeros(temp.shape),np.zeros(temp.shape)),axis=2)
             temp= self.draw_box(temp,x1,y1,x2,y2)
             cv2.imwrite(self.image_path +'/'+str(i)+'_'+str(data_temp['label'])+".png", temp)
+        ret_data.to_csv(str(self.data_path) + '/newData.csv')
 
 
 

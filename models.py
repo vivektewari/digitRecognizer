@@ -147,3 +147,16 @@ class FCLayered(FeatureExtractor):
         if self.mode == 'train': self.dropout = nn.Dropout(0.2)
         x = self.activation(x)
         return x
+
+
+class FTWithLocalization(FeatureExtractor):
+
+    def __init__(self, start_channel=4, input_image_dim=(28, 28), channels=[2],
+                 convs=[4], strides=[1], pools=[2], pads=[1], fc1_p=[10, 10]):
+        """
+
+        :param : from super
+
+        """
+        super().__init__()
+
