@@ -125,7 +125,7 @@ class MetricsCallback_loc(Callback):
         # for img in list_[0:9]:
         #     self.drawing.rub_box(data =None,dim=2,save_loc=self.drawing.image_path+"/"+img)
         #     i+=1
-    def on_epoch_end(self, state: Runner):
+    def on_epoch_end_(self, state: Runner):
         """Event handler for epoch end.
 
         Args:
@@ -154,7 +154,7 @@ class MetricsCallback_loc(Callback):
             self.visualizer.display_current_results(state.stage_epoch_step, loss[1],
                                                     name='classification_loss')
 
-    def on_batch_end(self,state):
+    def on_batch_end_(self,state):
         # if state.global_batch_step == 1:
         #     self.rub_pred()
         torch.nn.utils.clip_grad_value_(state.model.parameters(), clip_value=1.0)
