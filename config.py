@@ -25,7 +25,7 @@ epoch = 200
 
 random.seed(23)
 data_loader_param =DataLoad1_l_112 #DataLoad1
-data_loader_param.path= devData
+#data_loader_param.path= devData
 data_loader = DigitData_l #DigitData
 loss_func =LocalizatioLoss  #BCELoss
 model_param = Model3_112_2
