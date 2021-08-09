@@ -7,6 +7,7 @@ from itertools import permutations, combinations
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from commonFuncs import *
 import torch
+from prettytable import PrettyTable
 
 def toImage(savePath,dataPath):
     train = pd.read_csv(dataPath / 'train.csv', nrows=100)
@@ -41,7 +42,8 @@ def getMetrics(actual, predicted):
     return met
 
 
-def updateMetricsSheet(dev_actual, dev_pred, hold_actual, hold_pred, loc=metricSheetPath, modelName="", extraInfo="",
+
+def updateMetricsSheet(dev_actual, dev_pred, hold_actual, hold_pred, loc="", modelName="", extraInfo="",
                        force=False):
     model = 'model'
     f = pd.read_csv(loc, index_col='index')
@@ -63,10 +65,11 @@ def get_dict_from_class(class1):
 
 
 class DataCreation:
-    def __init__(self, data_path=dataPath, image_path_=None):
+    def __init__(self, data_path=None, image_path_=None):
         self.data_path = data_path
         self.image_path = image_path_
         self.to_csv = True
+        self.start_time=time.time()
 
     def darker(self, data):
 
@@ -81,7 +84,7 @@ class DataCreation:
             ar = np.array(data.iloc[i][pixel]).reshape((28, 28))
             fig = plt.figure()
             plt.imshow(ar)
-            fig.savefig(str(image_path) + '/' + str(i) + '_' + str(labe) + '.png')
+            fig.savefig(str(self.image_path) + '/' + str(i) + '_' + str(labe) + '.png')
             plt.close(fig)
 
         data.to_csv(str(self.data_Path) + '/newData.csv')
