@@ -8,7 +8,7 @@ from models import *
 from param_options import *
 
 #from funcs import *
-root = Path('/home/pooja/PycharmProjects/digitRecognizer/rough/localization')
+root = Path(os.getcwd())#rough/shift
 image_path = root / 'images'
 dataPath = root / 'data'
 dataCreated = root / 'data' / 'dataCreated'
@@ -30,7 +30,7 @@ data_loader = DigitData_l #DigitData
 loss_func =LocalizatioLoss  #BCELoss
 model_param = Model3_112_2
 model =FTWithLocalization
-pre_trained_model ="/home/pooja/PycharmProjects/digitRecognizer/fold0/checkpoints/train.29.pth"
+pre_trained_model ="/train.29.pth"
 #'/home/pooja/PycharmProjects/digitRecognizer/rough/localization/fold0/checkpoints/train.17.pth'
 
 
