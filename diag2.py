@@ -5,21 +5,21 @@ import matplotlib.pyplot as plt
 import numpy as np
 from config import *
 from funcs import get_dict_from_class
-from models import FeatureExtractor, FCLayered
+from models import FeatureExtractor, FTWithLocalization
 from losses import BCELoss
 
 from torch.utils.data import DataLoader
 import pandas as pd
 
 s = get_dict_from_class(DataLoad1)
-dev_dict = get_dict_from_class(DataLoad1)
-data_load = DigitData(**get_dict_from_class(DataLoad1))
+dev_dict = get_dict_from_class(data_loader_param)
+data_load = data_loader(**get_dict_from_class(DataLoad1))
 indexes=list(data_load.data['index'])
 criterion = BCELoss()
-model = FeatureExtractor(**get_dict_from_class(Model1))
+model = model(**get_dict_from_class(Model1))
 #model = FCLayered(**get_dict_from_class(Model1))
 if True:
-    checkpoint = torch.load(str(saveDirectory) + '/featureExtr_4_30.pth')
+    checkpoint = torch.load(pre_trained_model)['model_state_dict']
     model.load_state_dict(checkpoint)
     model.eval()
 

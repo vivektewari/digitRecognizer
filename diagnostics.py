@@ -1,7 +1,5 @@
-import pandas as pd
-import random
-from dataLoaders import DigitData
-from config import *
+
+
 import numpy as np
 from funcs import get_dict_from_class, updateMetricsSheet
 from models import FeatureExtractor
@@ -9,12 +7,11 @@ from tqdm import tqdm
 from torch.utils.data import DataLoader
 import torch
 import matplotlib.pyplot as plt
+from config import *
 
+#model = model(**get_dict_from_class(model_param))
+checkpoint = torch.load(pre_trained_model)['model_state_dict']
 
-#model = FeatureExtractor(**get_dict_from_class(Model1))
-checkpoint = torch.load(saveDirectory / 'featureExtr_4_30.pth')
-# weightMatrix = checkpoint['fc1.weight']
-# weightMatrix2 = checkpoint['fc2.weight']
 
 chan = [10, 10]
 side = [(8,8),( 10,9)]

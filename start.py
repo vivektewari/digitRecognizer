@@ -13,6 +13,7 @@ elif stage=='holdOutSample':
     train=train[orderedCols]
     breakParts=20
     rows=random.sample(range(train.shape[0]), int(train.shape[0]/breakParts))
+    rows=list(set(rows)-set([i for i in range(100)]))# keepint this elemnet in training to visulize these lement
     remaining=list(set(list(range(train.shape[0])))-set(rows))
     train.iloc[rows].to_csv(dataCreated / 'holdout.csv',index=False)
     train.iloc[remaining].to_csv(dataCreated / 'dev.csv',index=False)

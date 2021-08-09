@@ -1,4 +1,4 @@
-from config import *
+import time
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -7,9 +7,9 @@ from itertools import permutations, combinations
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from commonFuncs import *
 import torch
+from prettytable import PrettyTable
 
-
-def toImage(savePath):
+def toImage(savePath,dataPath):
     train = pd.read_csv(dataPath / 'train.csv', nrows=100)
     plt.gray()
     for row in range(train.shape[0]):
@@ -42,7 +42,8 @@ def getMetrics(actual, predicted):
     return met
 
 
-def updateMetricsSheet(dev_actual, dev_pred, hold_actual, hold_pred, loc=metricSheetPath, modelName="", extraInfo="",
+
+def updateMetricsSheet(dev_actual, dev_pred, hold_actual, hold_pred, loc="", modelName="", extraInfo="",
                        force=False):
     model = 'model'
     f = pd.read_csv(loc, index_col='index')
@@ -64,10 +65,11 @@ def get_dict_from_class(class1):
 
 
 class DataCreation:
-    def __init__(self, data_path=dataPath, image_path_=None):
+    def __init__(self, data_path=None, image_path_=None):
         self.data_path = data_path
         self.image_path = image_path_
         self.to_csv = True
+        self.start_time=time.time()
 
     def darker(self, data):
 
@@ -82,7 +84,7 @@ class DataCreation:
             ar = np.array(data.iloc[i][pixel]).reshape((28, 28))
             fig = plt.figure()
             plt.imshow(ar)
-            fig.savefig(str(image_path) + '/' + str(i) + '_' + str(labe) + '.png')
+            fig.savefig(str(self.image_path) + '/' + str(i) + '_' + str(labe) + '.png')
             plt.close(fig)
 
         data.to_csv(str(self.data_Path) + '/newData.csv')
@@ -145,6 +147,9 @@ class DataCreation:
             data_big.iloc[i][pixel] = temp.flatten()
             data_big.iloc[i]['label'] = data.iloc[i]['label']
             self.get_fig(temp, i, data.iloc[i]['label'])
+            if i % 500 == 0:
+                print(str(i) + " completed")
+                print("time elapsed: " +str(time.time()-self.start_time))
         if self.to_csv:
             data_big.to_csv(str(self.data_path) + '/newData.csv')
         return data_big
@@ -163,6 +168,9 @@ class DataCreation:
             data_big.iloc[i][pixel] = temp.flatten()
             data_big.iloc[i]['label'] = data.iloc[i]['label']
             self.get_fig(temp, i, data.iloc[i]['label'])
+            if i%500==0:
+                print(str(i)+" completed")
+                print("time elapsed: " + str(time.time() - self.start_time))
         if self.to_csv:
             data_big.to_csv(str(self.data_path) + '/newData.csv')
         return data_big
@@ -176,10 +184,32 @@ class DataCreation:
             x2, y2 = min((np.trim_zeros(x2))),min((np.trim_zeros(y2)))
             x1,y1,x2,y2 = x1, y1, data.shape[0] - x2-1, data.shape[1] - y2-1
             return [x1,y1,x2,y2]
-    def draw_box(self,data,x1=0,y1=0,x2=0,y2=0,dim=1,color_intensity=200):
+    def draw_box(self,data,x1=0,y1=0,x2=0,y2=0,dim=1,color_intensity=200,save_loc=None,message= ""):
+        x1,x2,y1,y2=int(x1),int(x2),int(y1),int(y2),
         data[x1, y1:y2, dim], data[x2, y1:y2, dim], data[x1:x2, y1,dim], data[x1:x2, y2, dim] = color_intensity, \
                                                              color_intensity ,color_intensity,color_intensity
-        return data
+        data[x1, y1:y1+5, dim], data[x1+5, y1:y1+5, dim], data[x1:x1+5, y1, dim], data[x1:x1+5, y1+5, dim] = color_intensity, \
+                                                                                                 color_intensity, color_intensity, color_intensity
+        cv2.imwrite(save_loc,data)
+    def draw_box(self,x1=0,y1=0,x2=0,y2=0,data=None,dim=1,color_intensity=(0,200,0),save_loc=None,msg= None):
+        x1,x2,y1,y2=int(x1),int(x2),int(y1),int(y2)
+        if data is not None :
+            cv2.imwrite(save_loc, data)
+        img = cv2.imread(save_loc)
+
+        cv2.rectangle(img, (y1, x1), (y2, x2), color_intensity,0)
+        if msg is not None:
+            w=9
+            h=3
+            #cv2.rectangle(img, (y1, x1), (y1 + w, x1 + h), color_intensity, 0)
+            text = "{}: {:.4f}".format(msg[0], msg[1])
+            #cv2.putText(img, text, (y1, x1),fontFace=cv2.FONT_HERSHEY_SIMPLEX,fontScale=1, color=(0,100,0),thickness= 0)
+            save_loc=save_loc.replace('.png','_pred_'+text+'.png')
+        cv2.imwrite(save_loc,img)
+    def rub_box(self,data,dim=1,color_intensity=0,save_loc=None):
+        data[:,:, dim]= color_intensity
+        cv2.imwrite(save_loc, data)
+
 
 
     def create_localization(self,data, data_count=10, size=(28, 28)):
@@ -195,9 +225,11 @@ class DataCreation:
             if len(temp.shape)<3 :
                 temp=np.expand_dims(temp,axis=2)
                 temp=np.concatenate((temp,np.zeros(temp.shape),np.zeros(temp.shape)),axis=2)
-            temp= self.draw_box(temp,x1,y1,x2,y2)
-            cv2.imwrite(self.image_path +'/'+str(i)+'_'+str(data_temp['label'])+".png", temp)
-        ret_data.to_csv(str(self.data_path) + '/newData.csv')
+            if self.image_path is not None: self.draw_box(x1,y1,x2,y2,data=temp,save_loc=self.image_path +'/'+str(i)+'_'+str(data_temp['label'])+".png")
+            if i % 500 == 0:
+                print(str(i) + " completed")
+                print("time elapsed: " + str(time.time() - self.start_time))
+        if self.data_path is not None:ret_data.to_csv(str(self.data_path) + '/newData.csv')
 
 
 
@@ -214,3 +246,19 @@ if __name__ == "__main__":
             fin=self.obj.create_localization(data=file,size=(28,28))
     c = test_DataCreation()
     c.test_create_localization()
+
+
+
+def count_parameters(model):
+    table = PrettyTable(["Modules", "Parameters"])
+    total_params = 0
+    for name, parameter in model.named_parameters():
+        if not parameter.requires_grad: continue
+        param = parameter.numel()
+        table.add_row([name, param])
+        total_params += param
+    print(table)
+    print(f"Total Trainable Params: {total_params}")
+    return total_params
+
+

@@ -158,5 +158,45 @@ class FTWithLocalization(FeatureExtractor):
         :param : from super
 
         """
-        super().__init__()
+        super().__init__(start_channel, input_image_dim, channels,
+                 convs, strides, pools, pads, fc1_p)
+        self.activation =torch.nn.LeakyReLU()
+        #self.activation_l =torch.nn.ReLU # torch.nn.LeakyReLU()
+        self.dropout = nn.Dropout(0.2)
+    def forward(self, input_):
+        #x=super().forward(input_)
+        x = self.cnn_feature_extractor(input_ / 255)
+        x = F.normalize(x, dim=1)
+        if self.fc1_p is None:
+            x = x.flatten(start_dim=1, end_dim=-1)
+            return self.activation(x)
+
+        x = x.flatten(start_dim=1, end_dim=-1)
+        if self.fc1_p[0] is not None:
+            x = self.activation_l(x)
+            x=self.fc1(x)
+            x = self.activation_l(x)
+            x = F.normalize(x, dim=1)
+
+            if self.mode_train == 1:
+                x = self.dropout(x)
+            x = self.fc2(x)
+
+
+        x = self.activation(x)
+        #x = F.normalize(x, dim=1)
+
+
+
+        first_slice = x[:, :10]
+        #first_slice = F.normalize(first_slice,dim=1)
+        second_slice = x[:, 10:]
+        tuple_of_activated_parts = (
+            F.softmax(first_slice,dim=1),
+            torch.clamp(second_slice,min=0, max=111))
+
+
+        x = torch.cat(tuple_of_activated_parts, dim=1)
+
+        return x
 

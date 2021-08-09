@@ -36,17 +36,44 @@ class Model2:
     pools = [2, 2,1]
     fc1_p = [None, 10]#1040
 class Model3:
-    channels = [31,65]
+    channels = [31,65,128]
     input_image_dim = (28, 28)
     start_channel = 1
-    convs = [5 ,5]#5,5,3
-    pads = [0, 0,0]
+    convs = [3 ,3,2]#5,5,3
+    pads = [0, 0,0,0]
     strides = [1,1, 1,1]
-    pools = [2, 2,1]
-    fc1_p = [128, 14]#1040
+    pools = [2, 2,2,1]
+    fc1_p = [256, 14]
+
+class Model4:
+        channels = [11, 22]
+        input_image_dim = (28, 28)
+        start_channel = 1
+        convs = [5, 3, 2,2]  # 5,5,3
+        pads = [0, 0, 0, 0,0]
+        strides = [1, 1, 1, 1,1]
+        pools = [1, 1, 1, 1,1]  # [2, 2,2,1]
+        fc1_p = [64, 14]  # [256, 14]
 
 
-
+class Model3_112:
+    channels = [11, 22]
+    input_image_dim = (28*4, 28*4)
+    start_channel = 1
+    convs = [5, 3, 2, 2]  # 5,5,3
+    pads = [0, 0, 0, 0, 0]
+    strides = [1, 1, 1, 1, 1]
+    pools = [1, 1, 1, 1, 1]  # [2, 2,2,1]
+    fc1_p = [64, 14]  # [256, 14]
+class Model3_112_2:
+    channels = [16,32, 64,128,256,512,1024]
+    input_image_dim = (28*4, 28*4)
+    start_channel = 1
+    convs = [5, 5, 3, 3,2,2,2]  # 5,5,3
+    pads = [0, 0, 0, 0, 0,0,0,0]
+    strides = [1, 1, 1, 1, 1,1,1]
+    pools = [2, 2, 2, 2, 1,1,1]  # [2, 2,2,1]
+    fc1_p = [128, 14]  # [256, 14]
 
 class DataLoad1:
     # data_frame = None
@@ -58,6 +85,12 @@ class DataLoad1:
 class DataLoad1_l(DataLoad1):
     label = 'label'
     reshape_pixel = (28, 28)
+    pixel_col = ['pixel' + str(i) for i in range(reshape_pixel[0] * reshape_pixel[1])]
+    path = ""
+    localization_col = 'localisation'
+class DataLoad1_l_112(DataLoad1):
+    label = 'label'
+    reshape_pixel = (28*4, 28*4)
     pixel_col = ['pixel' + str(i) for i in range(reshape_pixel[0] * reshape_pixel[1])]
     path = ""
     localization_col = 'localisation'
