@@ -92,7 +92,7 @@ class DataLoad1_l_112(DataLoad1):
     label = 'label'
     reshape_pixel = (28*4, 28*4)
     pixel_col = ['pixel' + str(i) for i in range(reshape_pixel[0] * reshape_pixel[1])]
-    path = ""
+    path = "./"
     localization_col = 'localisation'
 
 
