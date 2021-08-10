@@ -20,7 +20,7 @@ device = 'cpu'
 config_id = str(os.getcwd()).split()[-1]
 startTime = time.time()
 test_data = dataPath / 'test.csv'
-lr =0.5
+lr =0.05
 epoch = 200
 
 random.seed(23)
@@ -30,7 +30,8 @@ data_loader = DigitData_l #DigitData
 loss_func =LocalizatioLoss  #BCELoss
 model_param = Model3_112_2
 model =FTWithLocalization
-pre_trained_model ="/home/pooja/PycharmProjects/digitRecognizer/fold0/checkpoints/train.29.pth"
+pre_trained_model ="/home/pooja/PycharmProjects/digitRecognizer/fold0/checkpoints/train.42.pth"
+pre_trained_model ="/home/pooja/Downloads/train.298.pth"
 #'/home/pooja/PycharmProjects/digitRecognizer/rough/localization/fold0/checkpoints/train.17.pth'
 
 

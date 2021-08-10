@@ -18,7 +18,8 @@ def train(model_param,model_,data_loader_param,data_loader,loss_func,callbacks=N
     model = model_(**get_dict_from_class(model_param))
     # model = FCLayered(**get_dict_from_class(model_param,model))
     if pretrained is not None:
-        checkpoint = torch.load(pretrained)
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        checkpoint = torch.load(pretrained, map_location=device)
         model.load_state_dict(checkpoint['model_state_dict'])
         model.eval()
     optimizer = optim.SGD(model.parameters(), lr=lr)

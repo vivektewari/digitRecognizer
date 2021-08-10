@@ -189,6 +189,7 @@ class FTWithLocalization(FeatureExtractor):
 
 
         first_slice = x[:, :10]
+        first_slice = F.normalize(first_slice, dim=1)
         #first_slice = F.normalize(first_slice,dim=1)
         second_slice = x[:, 10:]
         tuple_of_activated_parts = (
