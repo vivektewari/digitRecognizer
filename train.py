@@ -45,13 +45,13 @@ def train(model_param,model_,data_loader_param,data_loader,loss_func,callbacks=N
         "train": DataLoader(data_loader(data_frame=train_file, **get_dict_from_class(data_loader_param)),
                             batch_size=128,
                             shuffle=False,
-                            num_workers=4,
+                            num_workers=8,
                             pin_memory=True,
                             drop_last=False),
         "valid": DataLoader(data_loader(data_frame=val_file, **get_dict_from_class(data_loader_param)),
                             batch_size=256,
                             shuffle=False,
-                            num_workers=4,
+                            num_workers=8,
                             pin_memory=True,
                             drop_last=False)
     }
