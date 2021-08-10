@@ -21,7 +21,7 @@ config_id = str(os.getcwd()).split()[-1]
 startTime = time.time()
 test_data = dataPath / 'test.csv'
 lr =0.5
-epoch = 200
+epoch = 1000
 
 random.seed(23)
 data_loader_param =DataLoad1_l_112 #DataLoad1
