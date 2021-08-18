@@ -3,7 +3,7 @@ import pandas as pd
 import torch
 
 from commonFuncs import packing
-maxrows=5000
+maxrows = 500
 class DigitData(Dataset):
     def __init__(self, data_frame=None, label=None, pixel_col=None, reshape_pixel=None, path=None):
         if data_frame is None:
@@ -38,6 +38,33 @@ class DigitData_l(DigitData):
         out = super().__getitem__(idx)
         out['targets'] =torch.tensor([out['targets'].tolist()]+packing.unpack(self.data.loc[idx][self.localization_col]), dtype=torch.float32)
         return out
+class DigitData_mult_object(DigitData):
+    def __init__(self, data_frame=None,data_frame_loc=None, label=None, pixel_col=None, localization_col=None, reshape_pixel=None,
+                 path=None,path_loc=None):
+        super().__init__(data_frame, label, pixel_col, reshape_pixel, path)
+        if data_frame_loc is None:
+            if maxrows is None:
+                data_frame_loc = pd.read_csv(path_loc, nrows=maxrows)
+            else:
+                data_frame_loc = pd.read_csv(path_loc,nrows=maxrows)
+        self.data_loc=data_frame_loc
+        self.localization_col = localization_col
+    def __getitem__(self, idx):
+        """
+
+        :param idx: index for which data to be return
+        :return: target as tensor with
+        """
+        box=[]
+        out = super().__getitem__(idx)
+        data=self.data_loc[self.data_loc['index']==idx][self.labelCol+self.localization_col]
+
+        for row in data.rows():
+            box.append(torch.tensor(row))
+        out['targets']=box
+
+        return out
+
 
 if __name__ == "__main__":
     from funcs import get_dict_from_class

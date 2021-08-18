@@ -1,7 +1,7 @@
 from dataLoaders import *
 from catalyst.dl import SupervisedRunner, CallbackOrder, Callback, CheckpointCallback
 from config import *
-from funcs import get_dict_from_class
+from funcs import get_dict_from_class,count_parameters
 from models import FeatureExtractor,FCLayered
 from losses import BCELoss
 import torch.optim as optim
@@ -14,8 +14,9 @@ import torch
 def train(model_param,model_,data_loader_param,data_loader,loss_func,callbacks=None,pretrained=None):
     randSeed=23
     data_load = data_loader(**get_dict_from_class(data_loader_param))
-    criterion = loss_func()
+    criterion = loss_func
     model = model_(**get_dict_from_class(model_param))
+    count_parameters(model)
     # model = FCLayered(**get_dict_from_class(model_param,model))
     if pretrained is not None:
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -82,7 +83,7 @@ def train(model_param,model_,data_loader_param,data_loader,loss_func,callbacks=N
     c = 0
 if __name__ == "__main__":
     from callbacks import *
-    a=LocalizatioLoss()
+    a=loss_func
     callbacks = [MetricsCallback_loc(input_key="targets", output_key="logits",
                         directory=saveDirectory, model_name='featureExtr_4',func=a.get_individual_loss)]
 

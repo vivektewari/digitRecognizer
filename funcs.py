@@ -1,4 +1,5 @@
 import time
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -62,6 +63,155 @@ def updateMetricsSheet(dev_actual, dev_pred, hold_actual, hold_pred, loc="", mod
 
 def get_dict_from_class(class1):
     return {k: v for k, v in class1.__dict__.items() if not (k.startswith('__') and k.endswith('__'))}
+
+class vison_utils:
+    @staticmethod
+    def find_intersection(set_1, set_2):
+        """
+        Find the intersection of every box combination between two sets of boxes that are in boundary coordinates.
+        :param set_1: set 1, a tensor of dimensions (n1, 4)
+        :param set_2: set 2, a tensor of dimensions (n2, 4)
+        :return: intersection of each of the boxes in set 1 with respect to each of the boxes in set 2, a tensor of dimensions (n1, n2)
+        """
+
+        # PyTorch auto-broadcasts singleton dimensions
+        lower_bounds = torch.max(set_1[:, :2].unsqueeze(1), set_2[:, :2].unsqueeze(0))  # (n1, n2, 2)
+        upper_bounds = torch.min(set_1[:, 2:].unsqueeze(1), set_2[:, 2:].unsqueeze(0))  # (n1, n2, 2)
+        intersection_dims = torch.clamp(upper_bounds - lower_bounds, min=0)  # (n1, n2, 2)
+        return intersection_dims[:, :, 0] * intersection_dims[:, :, 1]  # (n1, n2)
+
+    @staticmethod
+    def find_jaccard_overlap(set_1, set_2):
+        """
+        Find the Jaccard Overlap (IoU) of every box combination between two sets of boxes that are in boundary coordinates.
+        :param set_1: set 1, a tensor of dimensions (n1, 4)
+        :param set_2: set 2, a tensor of dimensions (n2, 4)
+        :return: Jaccard Overlap of each of the boxes in set 1 with respect to each of the boxes in set 2, a tensor of dimensions (n1, n2)
+        """
+
+        # Find intersections
+        intersection = vison_utils.find_intersection(set_1, set_2)  # (n1, n2)
+
+        # Find areas of each box in both sets
+        areas_set_1 = (set_1[:, 2] - set_1[:, 0]) * (set_1[:, 3] - set_1[:, 1])  # (n1)
+        areas_set_2 = (set_2[:, 2] - set_2[:, 0]) * (set_2[:, 3] - set_2[:, 1])  # (n2)
+
+        # Find the union
+        # PyTorch auto-broadcasts singleton dimensions
+        union = areas_set_1.unsqueeze(1) + areas_set_2.unsqueeze(0) - intersection  # (n1, n2)
+
+        return intersection / union  # (n1, n2)
+
+    def xy_to_cxcy(xy):
+        """
+        Convert bounding boxes from boundary coordinates (x_min, y_min, x_max, y_max) to center-size coordinates (c_x, c_y, w, h).
+        :param xy: bounding boxes in boundary coordinates, a tensor of size (n_boxes, 4)
+        :return: bounding boxes in center-size coordinates, a tensor of size (n_boxes, 4)
+        """
+        return torch.cat([(xy[:, 2:] + xy[:, :2]) / 2,  # c_x, c_y
+                          xy[:, 2:] - xy[:, :2]], 1)  # w, h
+
+    def cxcy_to_xy(cxcy):
+        """
+        Convert bounding boxes from center-size coordinates (c_x, c_y, w, h) to boundary coordinates (x_min, y_min, x_max, y_max).
+        :param cxcy: bounding boxes in center-size coordinates, a tensor of size (n_boxes, 4)
+        :return: bounding boxes in boundary coordinates, a tensor of size (n_boxes, 4)
+        """
+        return torch.cat([cxcy[:, :2] - (cxcy[:, 2:] / 2),  # x_min, y_min
+                          cxcy[:, :2] + (cxcy[:, 2:] / 2)], 1)  # x_max, y_max
+
+    def cxcy_to_gcxgcy(cxcy, priors_cxcy):
+        """
+        Encode bounding boxes (that are in center-size form) w.r.t. the corresponding prior boxes (that are in center-size form).
+        For the center coordinates, find the offset with respect to the prior box, and scale by the size of the prior box.
+        For the size coordinates, scale by the size of the prior box, and convert to the log-space.
+        In the model, we are predicting bounding box coordinates in this encoded form.
+        :param cxcy: bounding boxes in center-size coordinates, a tensor of size (n_priors, 4)
+        :param priors_cxcy: prior boxes with respect to which the encoding must be performed, a tensor of size (n_priors, 4)
+        :return: encoded bounding boxes, a tensor of size (n_priors, 4)
+        """
+
+        # The 10 and 5 below are referred to as 'variances' in the original Caffe repo, completely empirical
+        # They are for some sort of numerical conditioning, for 'scaling the localization gradient'
+        # See https://github.com/weiliu89/caffe/issues/155
+        return torch.cat([(cxcy[:, :2] - priors_cxcy[:, :2]) / (priors_cxcy[:, 2:] / 10),  # g_c_x, g_c_y
+                          torch.log(cxcy[:, 2:] / priors_cxcy[:, 2:]) * 5], 1)  # g_w, g_h
+
+    def gcxgcy_to_cxcy(gcxgcy, priors_cxcy):
+        """
+        Decode bounding box coordinates predicted by the model, since they are encoded in the form mentioned above.
+        They are decoded into center-size coordinates.
+        This is the inverse of the function above.
+        :param gcxgcy: encoded bounding boxes, i.e. output of the model, a tensor of size (n_priors, 4)
+        :param priors_cxcy: prior boxes with respect to which the encoding is defined, a tensor of size (n_priors, 4)
+        :return: decoded bounding boxes in center-size form, a tensor of size (n_priors, 4)
+        """
+
+        return torch.cat([gcxgcy[:, :2] * priors_cxcy[:, 2:] / 10 + priors_cxcy[:, :2],  # c_x, c_y
+                          torch.exp(gcxgcy[:, 2:] / 5) * priors_cxcy[:, 2:]], 1)  # w, h
+
+    @classmethod
+    def get_scale_aspect(cls,w=None,h=None,xy=None):
+        """
+
+        :param w: width of image . tensor
+        :param h: height of image . tensor
+        :param xy: coords of bounding box. tensor [:,4]
+        :return: scale and aspect in tensor of shape 2.
+        """
+        if w is not None and h is not None:
+            pass
+        elif xy is not None :
+            point=cls.xy_to_cxcy(xy)
+            w = point[:,2]
+            h = point[:, 3]
+        else:
+           raise TypeError("Input not correct")
+
+        aspect = w / h
+        scale = torch.sqrt(w * h)
+        return aspect,scale
+
+
+
+
+class clusterring():
+    @classmethod
+    def kmeans(cls,x,standardized=False,max_clusters=20,n_cluster=None):
+        from sklearn.cluster import KMeans
+        import seaborn as sns
+
+        if standardized :
+            from sklearn.preprocessing import StandardScaler
+            scaler = StandardScaler()
+            x = scaler.fit_transform(x)
+        if n_cluster is not None:
+            kmeans = KMeans( n_clusters=n_cluster, init='k-means++')
+            kmeans.fit(x)
+
+            if len(x.shape)<3:
+                if standardized :x = scaler.inverse_transform(x)
+                frame = pd.DataFrame({'x':x[:,0], 'y':x[:,1],'cluster': kmeans.labels_})
+                sns.scatterplot(data=frame, x="x", y="y", hue="cluster")
+                plt.show()
+                sns.countplot(x="cluster", data=frame)
+                plt.show()
+            return scaler.inverse_transform(kmeans.cluster_centers_)
+        else:
+            SSE = []
+            for cluster in range(1, max_clusters):
+                kmeans = KMeans( n_clusters=cluster, init='k-means++')
+                kmeans.fit(x)
+                SSE.append(kmeans.inertia_)
+
+            # converting the results into a dataframe and plotting them
+            frame = pd.DataFrame({'Cluster': range(1, 20), 'SSE': SSE})
+            plt.figure(figsize=(12, 6))
+            plt.plot(frame['Cluster'], frame['SSE'], marker='o')
+            plt.xlabel('Number of clusters')
+            plt.ylabel('Inertia')
+            plt.show()
+
 
 
 class DataCreation:
@@ -192,6 +342,7 @@ class DataCreation:
                                                                                                  color_intensity, color_intensity, color_intensity
         cv2.imwrite(save_loc,data)
     def draw_box(self,x1=0,y1=0,x2=0,y2=0,data=None,dim=1,color_intensity=(0,200,0),save_loc=None,msg= None):
+        torch.set_printoptions(precision=2)
         x1,x2,y1,y2=int(x1),int(x2),int(y1),int(y2)
         if data is not None :
             cv2.imwrite(save_loc, data)
@@ -202,7 +353,7 @@ class DataCreation:
             w=9
             h=3
             #cv2.rectangle(img, (y1, x1), (y1 + w, x1 + h), color_intensity, 0)
-            text = "{}: {:.4f}".format(msg[0], msg[1])
+            text = "{:.2f}: {:.2f}".format(float(msg[0]), float(msg[1]))
             #cv2.putText(img, text, (y1, x1),fontFace=cv2.FONT_HERSHEY_SIMPLEX,fontScale=1, color=(0,100,0),thickness= 0)
             save_loc=save_loc.replace('.png','_pred_'+text+'.png')
         cv2.imwrite(save_loc,img)
@@ -232,23 +383,6 @@ class DataCreation:
         if self.data_path is not None:ret_data.to_csv(str(self.data_path) + '/newData.csv')
 
 
-
-
-
-
-if __name__ == "__main__":
-    import unittest
-    class test_DataCreation():#unittest.TestCase
-        def __init__(self):
-            self.obj=DataCreation(image_path_='/home/pooja/PycharmProjects/digitRecognizer/test_rough/images')
-        def test_create_localization(self):
-            file=pd.read_csv('/home/pooja/PycharmProjects/digitRecognizer/data/dataCreated/holdout.csv')
-            fin=self.obj.create_localization(data=file,size=(28,28))
-    c = test_DataCreation()
-    c.test_create_localization()
-
-
-
 def count_parameters(model):
     table = PrettyTable(["Modules", "Parameters"])
     total_params = 0
@@ -260,5 +394,32 @@ def count_parameters(model):
     print(table)
     print(f"Total Trainable Params: {total_params}")
     return total_params
+
+
+
+if __name__ == "__main__":
+    import unittest
+    class test_DataCreation():#unittest.TestCase
+        def __init__(self):
+            self.obj=DataCreation(image_path_='/home/pooja/PycharmProjects/digitRecognizer/test_rough/images')
+        def test_create_localization(self):
+            file=pd.read_csv('/home/pooja/PycharmProjects/digitRecognizer/data/dataCreated/holdout.csv')
+            fin=self.obj.create_localization(data=file,size=(28,28))
+
+    # c = test_DataCreation()
+    # c.test_create_localization()
+    class test_vison_utils():  # unittest.TestCase
+        def __init__(self):
+            self.obj = DataCreation(image_path_='/home/pooja/PycharmProjects/digitRecognizer/test_rough/images')
+
+        def test_get_scale_aspect(self):
+            file = pd.read_csv('/home/pooja/PycharmProjects/digitRecognizer/data/dataCreated/holdout.csv')
+            fin = self.obj.create_localization(data=file, size=(28, 28))
+    # c = test_DataCreation()
+    # c.test_create_localization()
+
+
+
+
 
 

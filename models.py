@@ -2,7 +2,8 @@ import torch.nn.functional as F
 import torch.nn as nn
 import torch
 import numpy as np
-
+from funcs import vison_utils
+#from multibox_loss import *
 
 class ConvBlock(nn.Module):
     def __init__(self, in_channels: int, out_channels: int, kernel_size=(6, 6),
@@ -63,6 +64,7 @@ class FeatureExtractor(nn.Module):
             self.conv_blocks.append(ConvBlock(in_channels=last_channel, out_channels=fc1_p[1],
                                               kernel_size=(1, 1), stride=(1, 1),
                                               pool_size=(conv_dim[1][-2],conv_dim[1][-1]), padding=0))
+            self.num_blocks+=1
 
 
         self.activation_l = torch.nn.ReLU()
@@ -200,4 +202,61 @@ class FTWithLocalization(FeatureExtractor):
         x = torch.cat(tuple_of_activated_parts, dim=1)
 
         return x
+
+class FTWithLocalization_prior(FeatureExtractor):
+
+    def __init__(self, start_channel=4, input_image_dim=(28, 28), channels=[2],
+                 convs=[4], strides=[1], pools=[2], pads=[1], fc1_p=[10, 10]):
+        """
+
+        :param : from super
+
+        """
+        super().__init__(start_channel, input_image_dim, channels,
+                         convs, strides, pools, pads, fc1_p)
+        self.activation =torch.nn.ReLU()# torch.nn.LeakyReLU()
+        # self.activation_l =torch.nn.ReLU # torch.nn.Leaky ReLU()
+        self.dropout = nn.Dropout(0.2)
+    def forward(self, input_):
+        #x=super().forward(input_)
+        x = self.cnn_feature_extractor(input_ / 255)
+        #print(torch.var(x))
+        x = F.normalize(x, dim=1)
+        #x = torch.clamp(x, min=0, max=5)
+        x = x.flatten(start_dim=1, end_dim=-1)
+        #print(torch.var(x))
+        if self.fc1_p[0] is None:
+            pass #x= self.activation(x)
+        if self.fc1_p[0] is not None:
+            x = self.activation_l(x)
+            x = self.fc1(x)
+            x = self.activation_l(x)
+            x = F.normalize(x, dim=1)
+
+            if self.mode_train == 1:
+                x = self.dropout(x)
+            x = self.fc2(x)
+
+
+        x = self.activation(x)
+        #x = F.normalize(x, dim=1)
+
+
+        x=x.reshape((x.shape[0],700,14+1))
+        first_slice = x[:,:, :11]
+        second_slice = x[:, :, 11:]
+        #first_slice = F.normalize(first_slice, dim=2)
+        second_slice = F.normalize(second_slice, dim=2)
+        #first_slice = F.normalize(first_slice,dim=1)
+
+        tuple_of_activated_parts = (
+            F.softmax(first_slice,dim=2),
+            torch.clamp(second_slice,min=0, max=1))
+
+
+
+        x = torch.cat(tuple_of_activated_parts, dim=2).flatten(start_dim=1, end_dim=-1)
+
+        return x
+
 

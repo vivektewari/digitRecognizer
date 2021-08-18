@@ -2,7 +2,7 @@
 
 
 import torch
-
+import numpy as np
 from funcs import getMetrics,DataCreation
 from utils.visualizer import Visualizer
 import os,cv2
@@ -157,13 +157,14 @@ class MetricsCallback_loc(Callback):
     def on_batch_end(self,state):
         # if state.global_batch_step == 1:
         #     self.rub_pred()
-        torch.nn.utils.clip_grad_value_(state.model.parameters(), clip_value=1.0)
+        #torch.nn.utils.clip_grad_value_(state.model.parameters(), clip_value=1.0)
         if state.loader_batch_step==1 and (state.global_epoch_step-1)%5==0 and state.is_train_loader:
             preds = state.batch['logits']
             pred_class = torch.argmax(state.batch['logits'][:, :10], dim=1)
             max_prob=torch.max(state.batch['logits'][:, :10], dim=1)[0]
+            prioris,overlaps,prob=state.criterion.visualize_image(preds,state.batch['targets'])
             #self.rub_pred()
-            self.draw_image(preds[:, -4:], msg = (pred_class,max_prob))
+            self.draw_image(prioris, msg = (overlaps,prob))
 
             #print("max_gradient is "+ torch.max(state.model.state_dict().values()[0]))
 
