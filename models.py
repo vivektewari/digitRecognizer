@@ -4,7 +4,7 @@ import torch
 import numpy as np
 from funcs import vison_utils
 #from multibox_loss import *
-
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 class ConvBlock(nn.Module):
     def __init__(self, in_channels: int, out_channels: int, kernel_size=(6, 6),
                  stride=(1, 1), padding=(5, 5), pool_size=(2, 2)):
@@ -46,8 +46,9 @@ class FeatureExtractor(nn.Module):
         self.conv_blocks = nn.ModuleList()
         self.input_image_dim = input_image_dim
         self.fc1_p = fc1_p
-        self.mode_train = 0
-
+        self.mode_train = 1
+        self.activation_l = torch.nn.ReLU()
+        self.activation = torch.nn.Softmax(dim=1)
         last_channel = start_channel
         for i in range(self.num_blocks):
             self.conv_blocks.append(ConvBlock(in_channels=last_channel, out_channels=channels[i],
@@ -67,8 +68,7 @@ class FeatureExtractor(nn.Module):
             self.num_blocks+=1
 
 
-        self.activation_l = torch.nn.ReLU()
-        self.activation = torch.nn.Softmax(dim=1)
+
         self.init_weight()
         self.dropout = nn.Dropout(0.3)
 
@@ -102,7 +102,7 @@ class FeatureExtractor(nn.Module):
             # x_70=torch.quantile(x, 0.7)
             # x_50 = torch.quantile(x, 1)
             # x=self.activation_l((x-x_50-1)/max(x_50,0.01))
-            # x = self.activation_l(x/torch.max(x))
+            x = self.activation_l(x)
 
         return x
 
@@ -217,13 +217,42 @@ class FTWithLocalization_prior(FeatureExtractor):
         self.activation =torch.nn.ReLU()# torch.nn.LeakyReLU()
         # self.activation_l =torch.nn.ReLU # torch.nn.Leaky ReLU()
         self.dropout = nn.Dropout(0.2)
+        self.priors_cxcy = self.create_prior_boxes()
+        self.priors_xy = torch.clamp(vison_utils.cxcy_to_xy(self.priors_cxcy), min=0, max=1)
+
+    def model_outputs(self, model_output):
+        """
+        Decipher the 8732 locations and class scores (output of ths SSD300) to detect objects.
+        For each class, perform Non-Maximum Suppression (NMS) on boxes that are above a minimum threshold.
+        :param predicted_locs: predicted locations/boxes w.r.t the 8732 prior boxes, a tensor of dimensions (N, 8732, 4)
+        :param predicted_scores: class scores for each of the encoded locations/boxes, a tensor of dimensions (N, 8732, n_classes)
+        :param min_score: minimum threshold for a box to be considered a match for a certain class
+        :param max_overlap: maximum overlap two boxes can have so that the one with the lower score is not suppressed via NMS
+        :param top_k: if there are a lot of resulting detection across all classes, keep only the top 'k'
+        :return: detections (boxes, labels, and scores), lists of length batch_size
+        """
+        n_class=11
+        batch_size = model_output.shape[0]
+        boxes = int(model_output.shape[1] / (n_class + 4))
+        scores = model_output[:, :boxes * n_class]
+        locs = model_output[:, boxes * n_class:].reshape(batch_size,boxes,4)
+        return_output=torch.zeros((model_output.shape))
+        for i in range(batch_size):
+            locs_i = vison_utils.gcxgcy_to_cxcy(locs[i],self.priors_cxcy)
+            locs_i=torch.clamp(vison_utils.cxcy_to_xy(locs_i),0,1)
+            output=torch.cat([scores[i],locs_i.flatten()],dim=0)
+            return_output[i]=output
+
+        return return_output
     def forward(self, input_):
         #x=super().forward(input_)
-        x = self.cnn_feature_extractor(input_ / 255)
+        x = self.cnn_feature_extractor(input_/255.0)
         #print(torch.var(x))
-        x = F.normalize(x, dim=1)
+        #x = F.sigmoid(x, dim=1)
         #x = torch.clamp(x, min=0, max=5)
         x = x.flatten(start_dim=1, end_dim=-1)
+        # if self.mode_train == 1:
+        #     x = self.dropout(x)
         #print(torch.var(x))
         if self.fc1_p[0] is None:
             pass #x= self.activation(x)
@@ -233,30 +262,96 @@ class FTWithLocalization_prior(FeatureExtractor):
             x = self.activation_l(x)
             x = F.normalize(x, dim=1)
 
-            if self.mode_train == 1:
-                x = self.dropout(x)
+
             x = self.fc2(x)
 
 
         x = self.activation(x)
-        #x = F.normalize(x, dim=1)
 
 
-        x=x.reshape((x.shape[0],700,14+1))
+
+        x=x.reshape((x.shape[0],45,14+1))
         first_slice = x[:,:, :11]
+        #first_slice=F.sigmoid(first_slice)
+        #first_slice = F.normalize(first_slice, dim=2)
         second_slice = x[:, :, 11:]
         #first_slice = F.normalize(first_slice, dim=2)
-        second_slice = F.normalize(second_slice, dim=2)
+        #second_slice = F.normalize(second_slice, dim=2)
         #first_slice = F.normalize(first_slice,dim=1)
 
         tuple_of_activated_parts = (
             F.softmax(first_slice,dim=2),
             torch.clamp(second_slice,min=0, max=1))
 
-
-
-        x = torch.cat(tuple_of_activated_parts, dim=2).flatten(start_dim=1, end_dim=-1)
-
+        tuple_of_activated_parts1=[x.flatten(start_dim=1, end_dim=-1) for x in tuple_of_activated_parts]
+        x = torch.cat(tuple_of_activated_parts1, dim=1)#.flatten(start_dim=1, end_dim=-1)
+        # print("---")
+        # print(torch.mean(torch.max(tuple_of_activated_parts[0], dim=2)[0]))
+        # print(torch.mean(torch.max(x[:,:45*11].reshape((x.shape[0],45,11)), dim=2)[0]))
         return x
+
+    @staticmethod
+    def create_prior_boxes():
+        """
+        Create the 8732 prior (default) boxes for the SSD300, as defined in the paper.
+        :return: prior boxes in center-size coordinates, a tensor of dimensions (8732, 4)
+        """
+        fmap_dims = {'conv4_3': 3,
+                     'conv7': 9,
+                     'conv8_2': 10,
+                     'conv9_2': 5,
+                     'conv10_2': 3,
+                     'conv11_2': 1}
+
+        obj_scales = {'conv4_3': 0.1,
+                      'conv7': 0.2,
+                      'conv8_2': 0.375,
+                      'conv9_2': 0.55,
+                      'conv10_2': 0.725,
+                      'conv11_2': 0.9}
+
+        aspect_ratios = {'conv4_3': [1., 2., 0.5],
+                         'conv7': [1., 2., 3., 0.5, .333],
+                         'conv8_2': [1., 2., 3., 0.5, .333],
+                         'conv9_2': [1., 2., 3., 0.5, .333],
+                         'conv10_2': [1., 2., 0.5],
+                         'conv11_2': [1., 2., 0.5]}
+        # fmap_dims = {'conv4_3': 10}
+        # obj_scales = {'conv4_3': [0.324693658031057,0.13982694076936,0.254101116776089,0.121527277611988,0.379986683048495,0.162851193909395,0.171834183680792]}
+        # aspect_ratios = {'conv4_3': [1.54719497498501, 1.49927167625187, 6.85407259539126,3.90017628205128,1.08222360161625,1.01875795512884,2.71517599378192]}
+        fmap_dims = {'conv4_3': 3}
+        obj_scales = {'conv4_3': [0.5063, 0.5874, 0.2848, 0.3808, 0.6632]}
+        aspect_ratios = {'conv4_3': [1.820, 1.4294, 5.754, 3.2327, 1.040]}
+
+        fmaps = list(fmap_dims.keys())
+
+        prior_boxes = []
+
+        for k, fmap in enumerate(fmaps):
+            for i in range(fmap_dims[fmap]):
+                for j in range(fmap_dims[fmap]):
+                    cx = (j + 0.5) / fmap_dims[fmap]
+                    cy = (i + 0.5) / fmap_dims[fmap]
+                    for loop in range(len(aspect_ratios[fmap])):
+                        ratio = aspect_ratios[fmap][loop]
+                        scale = obj_scales[fmap][loop]
+                        prior_boxes.append(
+                            [cx, cy, scale * np.sqrt(ratio), scale / np.sqrt(ratio)])
+
+                        # For an aspect ratio of 1, use an additional prior whose scale is the geometric mean of the
+                        # scale of the current feature map and the scale of the next feature map
+                        # if ratio == 1.:
+                        #     try:
+                        #         additional_scale = np.sqrt(obj_scales[fmap] * obj_scales[fmaps[k + 1]])
+                        #     # For the last feature map, there is no "next" feature map
+                        #     except IndexError:
+                        #         additional_scale = 1.
+                        #     prior_boxes.append([cx, cy, additional_scale, additional_scale])
+
+        prior_boxes = torch.FloatTensor(prior_boxes).to(device)  # (8732, 4)
+        prior_boxes.clamp_(0, 1)  # (8732, 4)
+
+        return prior_boxes
+
 
 

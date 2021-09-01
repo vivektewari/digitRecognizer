@@ -1,9 +1,7 @@
-
-
-
+import pandas as pd
 import torch
 import numpy as np
-from funcs import getMetrics,DataCreation
+from funcs import getMetrics,DataCreation,vison_utils
 from utils.visualizer import Visualizer
 import os,cv2
 
@@ -88,6 +86,7 @@ class MetricsCallback_loc(Callback):
         self.check_interval = check_interval
         self.func = func
         self.drawing=DataCreation(image_path_='/home/pooja/PycharmProjects/digitRecognizer/rough/localization/images')
+        self.vision_utils = vison_utils
         self.visualizer = Visualizer()
 
     # def on_batch_end(self,state: State):# #
@@ -104,7 +103,7 @@ class MetricsCallback_loc(Callback):
 
     # score = f1_score(y_true, y_pred, average="macro")
     # state.batch_metrics[self.prefix] = score
-    def draw_image(self, preds,msg= ""):
+    def draw_image(self, preds,color_intensity,msg= ""):
         i=0
         list_ = os.listdir(self.drawing.image_path)
         for img in list_:
@@ -114,7 +113,7 @@ class MetricsCallback_loc(Callback):
 
 
         for img in list_[0:50]:
-            self.drawing.draw_box(*preds[i,:].tolist(),data =None,color_intensity=(0,0,200),save_loc=self.drawing.image_path+"/"+img,msg =(msg[0][i], msg[1][i]))
+            self.drawing.draw_box(preds[i],color_intensity=color_intensity,scale=28,data=None,save_loc=self.drawing.image_path+"/"+img,msg =(msg[0][i], msg[1][i]))
             i+=1
             if i==10 :break
 
@@ -139,7 +138,9 @@ class MetricsCallback_loc(Callback):
 
         if (state.stage_epoch_step + 1) % self.check_interval == 0:
             preds = state.batch['logits']
-            pred_class= torch.argmax(state.batch['logits'][:,:10], dim=1)
+            #pred_class= torch.argmax(state.batch['logits'][:,:10], dim=1)
+            temp = preds.reshape((preds.shape[0],45,15))[:,:,:11]
+            pred_class=torch.argmax(temp.reshape((preds.shape[0],45*11)), dim=1)%11
             accuracy_metrics=getMetrics(state.batch['targets'][:, 0], pred_class)
             loss=self.func(state.batch['targets'], preds)
             print("{} is {}{}".format(self.prefix, loss,accuracy_metrics))
@@ -147,8 +148,8 @@ class MetricsCallback_loc(Callback):
                                                     name='train_loss')
             self.visualizer.display_current_results(state.stage_epoch_step, state.epoch_metrics['valid']['loss'],
                                                     name='valid_loss')
-            self.visualizer.display_current_results(state.stage_epoch_step, accuracy_metrics[0],
-                                                    name='accuracy')
+            # self.visualizer.display_current_results(state.stage_epoch_step, accuracy_metrics[0],
+            #                                         name='accuracy')
             self.visualizer.display_current_results(state.stage_epoch_step, loss[0],
                                                     name='bounding_loss')
             self.visualizer.display_current_results(state.stage_epoch_step, loss[1],
@@ -158,15 +159,109 @@ class MetricsCallback_loc(Callback):
         # if state.global_batch_step == 1:
         #     self.rub_pred()
         #torch.nn.utils.clip_grad_value_(state.model.parameters(), clip_value=1.0)
-        if state.loader_batch_step==1 and (state.global_epoch_step-1)%5==0 and state.is_train_loader:
+        target = state.batch['targets'][:]
+        target[:, 1:] = target[:, 1:] / 28
+        if state.loader_batch_step == 1:
+            if state.is_train_loader:
+                model_output=state.get_model(1).model_outputs(state.batch['logits'])
+
+                prec_rec = self.get_prec_recall(target,model_output)
+                self.visualizer.display_current_results(state.stage_epoch_step, prec_rec[0],
+                                                        name='precision')
+                self.visualizer.display_current_results(state.stage_epoch_step, prec_rec[1],
+                                                        name='recall')
+
+
+
+        if state.loader_batch_step==1 and (state.global_epoch_step-1)%5 ==0 and state.is_train_loader:
             preds = state.batch['logits']
             pred_class = torch.argmax(state.batch['logits'][:, :10], dim=1)
             max_prob=torch.max(state.batch['logits'][:, :10], dim=1)[0]
-            prioris,overlaps,prob=state.criterion.visualize_image(preds,state.batch['targets'])
+            prioris,overlaps,prob,pred_locs=state.criterion.visualize_image(preds,state.batch['targets'])
+            pred_locs=self.pred_boxes(model_output,[i for i in range(11)])
             #self.rub_pred()
-            self.draw_image(prioris, msg = (overlaps,prob))
+            draw_list=[[prioris[i],pred_locs[i]] for i in range(len(prioris))]
+            self.draw_image(draw_list, color_intensity=[(0,0,200),(200,200,0)],msg = (overlaps,prob))
+            #self.draw_image(prioris, msg=(overlaps, prob))
+            self.get_grads(state)
 
             #print("max_gradient is "+ torch.max(state.model.state_dict().values()[0]))
+    def pred_boxes(self,model_pred_output,classes):
+        n_class=len(classes)
+        boxes = int(model_pred_output.shape[1] / (n_class + 4))
+        scores = model_pred_output[:, :boxes * n_class]
+        locs = model_pred_output[:, boxes * n_class:]
+        pred_boxes = self.vision_utils.create_boxes(scores, n_class, locs)
+        batch_size=model_pred_output.shape[0]
+        return_boxes=[]
+        for i in range(batch_size):
+            pred_boxes_i = self.vision_utils.non_max_suppression(pred_boxes[i], classes, background_class=10,
+                                                                 pred_thresh=0.8, overlap_thresh=0.5)
+            return_boxes.append(pred_boxes_i)
+
+        return return_boxes
+    def get_prec_recall(self,targets,model_pred_output):
+        """
+        Algo:
+        1.conver targets in batch,boxes,6
+        2.conver preds in batch,boxes,6
+        :param targets:
+        :return:
+        """
+        batch_size=targets.shape[0]
+        #1
+        targets=torch.cat([targets[:,0].reshape((targets.shape[0],1)),torch.ones((targets.shape[0],1)),targets[:,1:].reshape((targets.shape[0],4))],dim=1)
+        targets=targets.reshape((targets.shape[0],1,6))
+        #2
+        n_class = 11
+        classes=[i for i in range(n_class)]
+
+        boxes=int(model_pred_output.shape[1]/(n_class+4))
+
+        pred_boxes=self.pred_boxes(model_pred_output,classes)
+        for i in range(batch_size):
+            true_boxes_i = targets[i]
+            pred_boxes_i=pred_boxes[i]#self.vision_utils.non_max_suppression( pred_boxes[i], classes, background_class=11, pred_thresh=0.9, overlap_thresh=0.2)
+            if i==0:
+                tp_fp_np=self.vision_utils.tp_fp_fn(pred_boxes_i, true_boxes_i, classes[:-1], iou_threshold=0)
+            else:
+                tp_fp_np += self.vision_utils.tp_fp_fn(pred_boxes_i, true_boxes_i, classes[:-1], iou_threshold=0)
+        tp_fp_np_all=torch.cat([torch.sum(tp_fp_np,dim=0).reshape((1,3)),tp_fp_np],dim=0)
+        precision=tp_fp_np_all[:,0]/(tp_fp_np_all[:,0]+tp_fp_np_all[:,1])
+        recall=tp_fp_np_all[:,0]/(tp_fp_np_all[:,0]+tp_fp_np_all[:,2])
+        precision=torch.nan_to_num(precision,nan=0)
+        recall= torch.nan_to_num(recall, nan=0)
+
+        max_prec,max_rec,min_prec,min_rec=max(precision[1:]),max(recall[1:]),min(precision[1:]),min(recall[1:])
+        return  [precision[0],recall[0],max_prec,max_rec,min_prec,min_rec]
+    def get_grads(self, state):
+        # model train/valid step
+        x, y = state.batch['image_pixels'],state.batch['targets']
+        model=state.model
+        y_hat =model(x)
+        loss=state.criterion(y_hat,y)
+        loss.backward()
+
+        #get the blocks
+        if state.global_epoch_step==1:
+            self.grad_column_names=['epoch']
+            for block in state.model.state_dict().keys():
+                self.grad_column_names.extend([block+"_"+i for i in  ['min','mean','max']])
+
+            pd.DataFrame(columns=self.grad_column_names).to_csv(str(self.directory)+"//grads.csv")
+        val_dict= {'epoch':state.global_epoch_step}
+        funcs=[torch.min,torch.mean,torch.max]
+        loop=1
+        for block in state.model.state_dict().keys():
+            key = int(block.split('conv_blocks.')[1].split(".")[0])
+            temp=model.conv_blocks[key].conv.weight.grad
+            for f in funcs:
+                val_dict[self.grad_column_names[loop]]=[float(torch.abs(f(temp)))]
+                loop+=1
+        pd.DataFrame.from_dict(val_dict).to_csv(str(self.directory)+"//grads.csv",mode='a',header=False)
+
+
+
 
 
 

@@ -71,7 +71,7 @@ class MultiBoxLoss(LocalizatioLoss):
     (2) a confidence loss for the predicted class scores.
     """
 
-    def __init__(self, priors_cxcy=None, threshold=0.7, neg_pos_ratio=3, alpha=1.,pixel_shape=(112,112),n_class=None):
+    def __init__(self, priors_cxcy=None, threshold=0.5, neg_pos_ratio=6, alpha=1.,pixel_shape=(28,28),n_class=None):
         super(MultiBoxLoss, self).__init__()
         if priors_cxcy is None:
             self.priors_cxcy = self.create_prior_boxes()
@@ -90,7 +90,10 @@ class MultiBoxLoss(LocalizatioLoss):
 
     def convert(self,x):
         if x.shape[1]!=5:
-            x=x.reshape(x.shape[0],self.priors_cxcy.shape[0],self.n_class+1+4)#[:,0:x_len],torch.cat([x[:,x_len:x_len+2],x[:,x_len+2:x_len+4]])
+            preds=x[:,:self.priors_cxcy.shape[0]*(self.n_class+1)].reshape((x.shape[0],self.priors_cxcy.shape[0],self.n_class+1))
+            locs = x[:, self.priors_cxcy.shape[0] * (self.n_class + 1):].reshape((x.shape[0],self.priors_cxcy.shape[0],4))
+            x=torch.cat([preds,locs],dim=2)
+            #x=x.reshape(x.shape[0],self.priors_cxcy.shape[0],self.n_class+1+4)#[:,0:x_len],torch.cat([x[:,x_len:x_len+2],x[:,x_len+2:x_len+4]])
             x_len = x.shape[2] - 4
         else :
             x = x.reshape(x.shape[0], 1, 5)
@@ -123,9 +126,13 @@ class MultiBoxLoss(LocalizatioLoss):
                          'conv9_2': [1., 2., 3., 0.5, .333],
                          'conv10_2': [1., 2., 0.5],
                          'conv11_2': [1., 2., 0.5]}
-        fmap_dims = {'conv4_3': 10}
-        obj_scales = {'conv4_3': [0.324693658031057,0.13982694076936,0.254101116776089,0.121527277611988,0.379986683048495,0.162851193909395,0.171834183680792]}
-        aspect_ratios = {'conv4_3': [1.54719497498501, 1.49927167625187, 6.85407259539126,3.90017628205128,1.08222360161625,1.01875795512884,2.71517599378192]}
+        #fmap_dims = {'conv4_3': 10}
+        #obj_scales = {'conv4_3': [0.324693658031057,0.13982694076936,0.254101116776089,0.121527277611988,0.379986683048495,0.162851193909395,0.171834183680792]}
+        #aspect_ratios = {'conv4_3': [1.54719497498501, 1.49927167625187, 6.85407259539126,3.90017628205128,1.08222360161625,1.01875795512884,2.71517599378192]}
+        fmap_dims = {'conv4_3': 3}
+        obj_scales = {'conv4_3': [0.5063,0.5874,0.2848,0.3808,0.6632]}
+        aspect_ratios = {'conv4_3': [1.820, 1.4294, 5.754,3.2327,1.040]}
+
         fmaps = list(fmap_dims.keys())
 
         prior_boxes = []
@@ -168,7 +175,7 @@ class MultiBoxLoss(LocalizatioLoss):
         """
         predicted_scores, predicted_locs = self.convert(pred)
         labels, boxes = self.convert(actual)
-        boxes=boxes/112
+        boxes=boxes#/28
         batch_size = predicted_locs.size(0)
         n_priors = self.priors_cxcy.size(0)
         n_classes = predicted_scores.size(2)
@@ -266,8 +273,13 @@ class MultiBoxLoss(LocalizatioLoss):
     def visualize_image(self,pred,actual):
 
         predicted_scores, predicted_locs = self.convert(pred)
+
+
+        # targets = torch.cat([targets[:, 0].reshape((targets.shape[0], 1)), torch.ones((targets.shape[0], 1)),
+        #                      targets[:, 1:].reshape((targets.shape[0], 4))], dim=1)
+        # targets = targets.reshape((targets.shape[0], 1, 6))
         labels, boxes = self.convert(actual)
-        boxes = boxes / 112
+        boxes = boxes #/ 28
         batch_size = predicted_locs.size(0)
         n_priors = self.priors_cxcy.size(0)
         n_classes = predicted_scores.size(2)
@@ -278,6 +290,7 @@ class MultiBoxLoss(LocalizatioLoss):
         true_classes = torch.zeros((batch_size, n_priors), dtype=torch.long).to(device)  # (N, 8732)
 
         # For each image
+        pred_locs=[]
         prioris=[]
         overlaps=[]
         predicted_s=[]
@@ -304,10 +317,18 @@ class MultiBoxLoss(LocalizatioLoss):
 
             # To ensure these priors qualify, artificially give them an overlap of greater than 0.5. (This fixes 2.)
             overlap_for_each_prior[prior_for_each_object] = 1.
-            prioris.append(self.priors_xy[prior_for_each_object[0]])
+            pred_sc = torch.tensor([
+                int(actual[i, 0]), predicted_scores[i, prior_for_each_object[0], int(actual[i, 0])]])
+            prioris.append([torch.cat([pred_sc,self.priors_xy[prior_for_each_object[0]]],dim=0)])
+
+            #pred_=vison_utils.cxcy_to_xy(vison_utils.gcxgcy_to_cxcy(predicted_locs[i], self.priors_cxcy))
+            ##pred_ = torch.clamp(pred_, 0, 1)
+            #pred_locs.append(pred_[prior_for_each_object[0]].tolist())
             overlaps.append(overlap[:,prior_for_each_object[0]])
+
             prioris,overlaps=list(map(list,prioris)),list(map(list,overlaps))
+
             predicted_s.append(predicted_scores[i,prior_for_each_object[0],int(actual[i,0])].detach())
-        return torch.floor(torch.tensor(prioris)*112),torch.tensor(overlaps),torch.tensor( predicted_s)
+        return prioris,torch.tensor(overlaps),torch.tensor( predicted_s),torch.floor(torch.tensor(pred_locs)*28)
 
 

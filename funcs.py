@@ -66,6 +66,116 @@ def get_dict_from_class(class1):
 
 class vison_utils:
     @staticmethod
+    def create_boxes(scores,n_classes,bounding_locs):
+        """
+        :param scores: tensor with dim as batch,claases scores
+        :param n_classes: num classes should be num classes +1 for background
+        :param bounding_locs: tensor with dim as batch,locs dim
+        :return: boxes with dim batch,boxes,6([actual,prob,4 locs)
+        """
+        box_count=int(scores.shape[1]/(n_classes))
+        batch_len=int(scores.shape[0])
+
+        scores = scores.reshape(batch_len,box_count,n_classes)
+        argmax_score,argmax_class=torch.max(scores,dim=2,keepdim=True)
+
+        bounding_locs = bounding_locs.reshape(batch_len,box_count,int(bounding_locs.shape[1]/box_count))
+        return_boxes=torch.cat([argmax_class,argmax_score,bounding_locs],dim=2)
+
+
+        return return_boxes
+
+    @classmethod
+    def non_max_suppression(cls, boxes, classes, background_class, pred_thresh=0.3, overlap_thresh=0.7):
+        """
+        Algo:(for a single image input)
+        1. Remove background boxes and have less than pred_thresh
+        1.iterate over all the class
+            1: Subset boxes with this class. Sorts in decreasign order of probs.
+            2. create a 2 dim array with u triangle all 0, find max of each column and if max is greater
+            overlap threshold , drop the the box
+            3. remaining boxes are the predicted boxes
+
+        :param boxes: tensor with label,max_prob,4 location parmas
+        :param pred_thresh: threshold below which box will not be considered
+        :param overlap_thresh: suppression jaccard
+        :param classes : classes list of n dim(excludes background class)
+        :param background_class: background class  identifier. single string /int.
+        :return: subset of above boxes
+        """
+        boxes_wt_bg = boxes[boxes[:, 0] != background_class]
+        boxes_wt_bg=boxes_wt_bg[boxes_wt_bg[:, 1] > pred_thresh]
+        if len(boxes_wt_bg)==0 : return []
+        final_boxes=None
+        for i in classes:
+            boxes_i=boxes_wt_bg[boxes_wt_bg[:,0]==i]
+            if boxes_i.shape[0]==0: continue
+            _,sort_order =boxes_i[:,1].sort(dim=0, descending=True)
+            boxes_i=boxes_i[sort_order]
+            temp1=cls.find_jaccard_overlap(boxes_i[:,2:],boxes_i[:,2:])
+
+            temp = torch.where(temp1 <= overlap_thresh,  torch.tensor(0.0),temp1)
+            temp = torch.tril(temp, diagonal=-1)
+            temp=torch.sum(temp,dim=1)
+            indices = (temp==0).nonzero(as_tuple=True)
+            temp=boxes_i[indices]
+            if final_boxes is None:
+                final_boxes=temp
+            else:
+                final_boxes=torch.cat([final_boxes,temp],dim=0)
+            #final_boxes.extend([temp[i] for i in range(temp.shape[0])])
+        return final_boxes
+    @classmethod
+    def tp_fp_fn(cls, pred_boxes, true_boxes, classes, iou_threshold=0.5):
+        """
+        Algortihm:
+        1. iterate over all the classes
+            1.find jaccard over pre vs true boxes for that class. take the upper triangle. pred rows and true columns
+            2.in a row then column aprt from max, make all other element 0.
+            3.max row, to get 1 d array. Count number of them greater than IOU threshold. This is TP
+            4. count rows - TP =FP nad count coulmns - TP is False Negatives
+            5. save tp, fp,fn in dictionary
+        2. combine dictionary to get precision and recall for each class as well as overall(averaged)
+
+        :param pred_boxes: tensor with label,max_prob,4 location parmas
+        :param true_boxes: tensor with label,max_prob=1,4 location parmas
+        :return:Dataframe with class +all as row indexes and precision and recall as column index
+        """
+        final_dict= torch.zeros((len(classes),3))
+        for i in classes:
+            true_boxes_i = true_boxes[true_boxes[:, 0] == i][:, 2:]
+            if len(pred_boxes)==0:
+                tp=0
+                pred_boxes_i=[]
+            else:
+                pred_boxes_i=pred_boxes[pred_boxes[:,0]==i][:,2:]
+
+                if len(pred_boxes_i)==0 or len(true_boxes_i)==0 :
+                    tp=0
+                else:
+                    jaccard = cls.find_jaccard_overlap(pred_boxes_i,true_boxes_i)
+                    jaccard = torch.where(jaccard>=iou_threshold,jaccard,torch.tensor(0.0))
+                    row_max = torch.argmax(jaccard,dim=0).tolist()
+                    col_max = torch.argmax(jaccard, dim=1).tolist()
+                    row_max_indices=[(i,row_max[i]) for i in range(jaccard.shape[1])]
+                    col_max_indices = [(col_max[i],i) for i in range(jaccard.shape[0])]
+
+                    final_list = list(set( row_max_indices).intersection(set( col_max_indices)))
+                    tp = len(final_list)
+
+
+            fp = len(pred_boxes_i) - tp
+            fn = len(true_boxes_i) - tp
+            final_dict[i,:] = final_dict[i,:]+torch.tensor([tp,fp,fn])
+            i+=1
+        #print(final_dict)
+        return final_dict
+
+
+
+
+
+
     def find_intersection(set_1, set_2):
         """
         Find the intersection of every box combination between two sets of boxes that are in boundary coordinates.
@@ -341,22 +451,40 @@ class DataCreation:
         data[x1, y1:y1+5, dim], data[x1+5, y1:y1+5, dim], data[x1:x1+5, y1, dim], data[x1:x1+5, y1+5, dim] = color_intensity, \
                                                                                                  color_intensity, color_intensity, color_intensity
         cv2.imwrite(save_loc,data)
-    def draw_box(self,x1=0,y1=0,x2=0,y2=0,data=None,dim=1,color_intensity=(0,200,0),save_loc=None,msg= None):
-        torch.set_printoptions(precision=2)
-        x1,x2,y1,y2=int(x1),int(x2),int(y1),int(y2)
-        if data is not None :
-            cv2.imwrite(save_loc, data)
-        img = cv2.imread(save_loc)
+    def draw_box(self,locs,data=None,color_intensity=[(0,200,0)],scale=None,save_loc=None,msg= None,imgscale=8):
+        """
 
-        cv2.rectangle(img, (y1, x1), (y2, x2), color_intensity,0)
-        if msg is not None:
-            w=9
-            h=3
-            #cv2.rectangle(img, (y1, x1), (y1 + w, x1 + h), color_intensity, 0)
-            text = "{:.2f}: {:.2f}".format(float(msg[0]), float(msg[1]))
-            #cv2.putText(img, text, (y1, x1),fontFace=cv2.FONT_HERSHEY_SIMPLEX,fontScale=1, color=(0,100,0),thickness= 0)
-            save_loc=save_loc.replace('.png','_pred_'+text+'.png')
+        :param locs: [[prediction,prob,x1,y1,x2,y2],...] |each terminal boxes will have  prediction,prob,x1,y1,x2,y2
+        :param data: tesnor |if imgae loc is not provide than image data need to be provided
+        :param color_intensity:list of (x,y,z)| color for each boxes
+        :param save_loc: str|where to save the image after making boxes
+        :param scale: int| multipler by which each loc multiplied
+        :param msg: str | new name for image saving
+        :return: image Nond| as it saves the image to save_locs
+        """
+        torch.set_printoptions(precision=2)
+        img=None
+        scale=imgscale*scale
+        for i in range(len(locs)):
+         for j in range(len(locs[i])):
+            actual=locs[i][j][0]
+            pred=locs[i][j][1]
+            x1,x2,y1,y2=locs[i][j][2],locs[i][j][4],locs[i][j][3],locs[i][j][5]
+            if save_loc is not None:x1, x2, y1, y2=int(x1*scale),int(x2*scale),int(y1*scale),int(y2*scale)
+            if data is not None :
+                    cv2.imwrite(save_loc, data)
+            if img is  None:
+                img = cv2.imread(save_loc)
+                img = cv2.resize(img,
+                                 dsize=(28*imgscale, 28*imgscale)
+                                 , interpolation=cv2.INTER_CUBIC)
+
+            img=cv2.rectangle(img, (y1, x1), (y2, x2), color_intensity[i],0)
+            text = "{:.2f}: {:.2f}".format(float(actual), float(pred))
+            img =  cv2.putText(img, text,org= (y1, x1),fontFace=cv2.FONT_HERSHEY_SIMPLEX,fontScale=0.2, color=(255,255,255),thickness=1,lineType= cv2.LINE_AA,bottomLeftOrigin = False)
+        save_loc=save_loc.replace('.png','_pred_'+text+'.png')
         cv2.imwrite(save_loc,img)
+
     def rub_box(self,data,dim=1,color_intensity=0,save_loc=None):
         data[:,:, dim]= color_intensity
         cv2.imwrite(save_loc, data)
@@ -410,13 +538,37 @@ if __name__ == "__main__":
     # c.test_create_localization()
     class test_vison_utils():  # unittest.TestCase
         def __init__(self):
-            self.obj = DataCreation(image_path_='/home/pooja/PycharmProjects/digitRecognizer/test_rough/images')
+            self.obj = vison_utils
 
-        def test_get_scale_aspect(self):
-            file = pd.read_csv('/home/pooja/PycharmProjects/digitRecognizer/data/dataCreated/holdout.csv')
-            fin = self.obj.create_localization(data=file, size=(28, 28))
-    # c = test_DataCreation()
-    # c.test_create_localization()
+        def test_get_detection_pipeline(self):
+            n_classes=11
+            batch=32
+            boxes=50
+            classes=[i for i in range(n_classes) ]
+            scores=torch.rand((batch,n_classes*boxes))
+            bounding_locs = torch.rand((batch,boxes,4))
+            bounding_locs,_=bounding_locs.sort(dim=2) #doing this so x2,y2>=x1,y1
+            bounding_locs= bounding_locs.reshape(batch,boxes*4)
+
+
+
+            t1a = self.obj.create_boxes(scores,n_classes,bounding_locs)
+            assert t1a.shape==(batch,boxes,6)
+            t2=self.obj.non_max_suppression( t1a[0], classes, background_class=11, pred_thresh=0.3, overlap_thresh=1)
+            assert t2.shape[1]==6
+            bounding_locs = torch.rand((batch, boxes, 4))
+            bounding_locs, _ = bounding_locs.sort(dim=2)
+            t1b = torch.rand((batch,boxes,2))
+            t1b[:,:,0]=torch.floor(t1b[:,:,0]*n_classes)
+            t1b[:,:, 1]=1
+            t1b=torch.cat([t1b,bounding_locs],dim=2)
+
+
+            t3 =self.obj.tp_fp_fn(t2, t1b[0], classes[:-1], iou_threshold=0.5)
+
+
+    c = test_vison_utils()
+    c.test_get_detection_pipeline()
 
 
 

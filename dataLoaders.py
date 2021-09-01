@@ -3,7 +3,7 @@ import pandas as pd
 import torch
 
 from commonFuncs import packing
-maxrows = 500
+maxrows =5000
 class DigitData(Dataset):
     def __init__(self, data_frame=None, label=None, pixel_col=None, reshape_pixel=None, path=None):
         if data_frame is None:
