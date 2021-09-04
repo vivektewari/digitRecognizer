@@ -80,11 +80,11 @@ def train(model_param,model_,data_loader_param,data_loader,loss_func,callbacks=N
 
     # main_metric = "epoch_f1",
     # minimize_metric = False
-    c = 0
+
 if __name__ == "__main__":
     from callbacks import *
     a=loss_func
     callbacks = [MetricsCallback_loc(input_key="targets", output_key="logits",
-                        directory=saveDirectory, model_name='featureExtr_4',func=a.get_individual_loss)]
+                        directory=saveDirectory, model_name='featureExtr_4',func=a.get_individual_loss,pixel = model_param.input_image_dim[0])]
 
     train(model_param,model,data_loader_param,data_loader,loss_func,callbacks,pretrained=pre_trained_model)#'/home/pooja/PycharmProjects/digitRecognizer/rough/localization/fold0/checkpoints/train.138.pth')

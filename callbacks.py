@@ -16,6 +16,7 @@ class MetricsCallback(Callback):
                  input_key: str = "targets",
                  output_key: str = "logits",
                  prefix: str = "acc_pre_rec_f1",
+
                  ):
         super().__init__(CallbackOrder.Metric)
 
@@ -75,7 +76,8 @@ class MetricsCallback_loc(Callback):
                  input_key: str = "targets",
                  output_key: str = "logits",
                  prefix: str = "bound_loss,classification_loss,acc_pre_rec_f1",
-                 func = getMetrics):
+                 func = getMetrics,
+                 pixel =None):
         super().__init__(CallbackOrder.Metric)
 
         self.input_key = input_key
@@ -88,6 +90,7 @@ class MetricsCallback_loc(Callback):
         self.drawing=DataCreation(image_path_='/home/pooja/PycharmProjects/digitRecognizer/rough/localization/images')
         self.vision_utils = vison_utils
         self.visualizer = Visualizer()
+        self.pixel = pixel
 
     # def on_batch_end(self,state: State):# #
     #     targ = state.input[self.input_key].detach().cpu().numpy()
@@ -113,7 +116,7 @@ class MetricsCallback_loc(Callback):
 
 
         for img in list_[0:50]:
-            self.drawing.draw_box(preds[i],color_intensity=color_intensity,scale=28,data=None,save_loc=self.drawing.image_path+"/"+img,msg =(msg[0][i], msg[1][i]))
+            self.drawing.draw_box(preds[i],color_intensity=color_intensity,scale=self.pixel,data=None,save_loc=self.drawing.image_path+"/"+img,msg =(msg[0][i], msg[1][i]))
             i+=1
             if i==10 :break
 
@@ -137,10 +140,12 @@ class MetricsCallback_loc(Callback):
             state.stage_epoch_step) + ".pth")
 
         if (state.stage_epoch_step + 1) % self.check_interval == 0:
+
             preds = state.batch['logits']
+            box_count = int(preds.shape[1] / 15)
             #pred_class= torch.argmax(state.batch['logits'][:,:10], dim=1)
-            temp = preds.reshape((preds.shape[0],45,15))[:,:,:11]
-            pred_class=torch.argmax(temp.reshape((preds.shape[0],45*11)), dim=1)%11
+            temp = preds.reshape((preds.shape[0],box_count,15))[:,:,:11]
+            pred_class=torch.argmax(temp.reshape((preds.shape[0],box_count*11)), dim=1)%11
             accuracy_metrics=getMetrics(state.batch['targets'][:, 0], pred_class)
             loss=self.func(state.batch['targets'], preds)
             print("{} is {}{}".format(self.prefix, loss,accuracy_metrics))
@@ -159,8 +164,8 @@ class MetricsCallback_loc(Callback):
         # if state.global_batch_step == 1:
         #     self.rub_pred()
         #torch.nn.utils.clip_grad_value_(state.model.parameters(), clip_value=1.0)
-        target = state.batch['targets'][:]
-        target[:, 1:] = target[:, 1:] / 28
+        target = state.batch['targets'].clone().detach()
+        target[:, 1:] = target[:, 1:] / self.pixel
         if state.loader_batch_step == 1:
             if state.is_train_loader:
                 model_output=state.get_model(1).model_outputs(state.batch['logits'])
@@ -196,7 +201,7 @@ class MetricsCallback_loc(Callback):
         return_boxes=[]
         for i in range(batch_size):
             pred_boxes_i = self.vision_utils.non_max_suppression(pred_boxes[i], classes, background_class=10,
-                                                                 pred_thresh=0.8, overlap_thresh=0.5)
+                                                                 pred_thresh=0.5, overlap_thresh=0.5)
             return_boxes.append(pred_boxes_i)
 
         return return_boxes

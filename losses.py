@@ -71,7 +71,7 @@ class MultiBoxLoss(LocalizatioLoss):
     (2) a confidence loss for the predicted class scores.
     """
 
-    def __init__(self, priors_cxcy=None, threshold=0.5, neg_pos_ratio=6, alpha=1.,pixel_shape=(28,28),n_class=None):
+    def __init__(self, priors_cxcy=None, threshold=0.6, neg_pos_ratio=3, alpha=1.,pixel_shape=(28,28),n_class=None):
         super(MultiBoxLoss, self).__init__()
         if priors_cxcy is None:
             self.priors_cxcy = self.create_prior_boxes()
@@ -129,10 +129,9 @@ class MultiBoxLoss(LocalizatioLoss):
         #fmap_dims = {'conv4_3': 10}
         #obj_scales = {'conv4_3': [0.324693658031057,0.13982694076936,0.254101116776089,0.121527277611988,0.379986683048495,0.162851193909395,0.171834183680792]}
         #aspect_ratios = {'conv4_3': [1.54719497498501, 1.49927167625187, 6.85407259539126,3.90017628205128,1.08222360161625,1.01875795512884,2.71517599378192]}
-        fmap_dims = {'conv4_3': 3}
-        obj_scales = {'conv4_3': [0.5063,0.5874,0.2848,0.3808,0.6632]}
-        aspect_ratios = {'conv4_3': [1.820, 1.4294, 5.754,3.2327,1.040]}
-
+        fmap_dims = {'conv4_3': 10}
+        obj_scales = {'conv4_3': [0.38, 0.14, 0.28, 0.11, 0.33,0.08,0.16,0.12,0.10,0.23,0.36]}
+        aspect_ratios = {'conv4_3': [0.99, 1.33, 1.96, 2.13, 1.45,4.00,1.004,1.71,2.80,2.95,1.21]}
         fmaps = list(fmap_dims.keys())
 
         prior_boxes = []
@@ -175,7 +174,7 @@ class MultiBoxLoss(LocalizatioLoss):
         """
         predicted_scores, predicted_locs = self.convert(pred)
         labels, boxes = self.convert(actual)
-        boxes=boxes#/28
+        boxes=boxes/self.pixel_shape[0]
         batch_size = predicted_locs.size(0)
         n_priors = self.priors_cxcy.size(0)
         n_classes = predicted_scores.size(2)
@@ -279,7 +278,7 @@ class MultiBoxLoss(LocalizatioLoss):
         #                      targets[:, 1:].reshape((targets.shape[0], 4))], dim=1)
         # targets = targets.reshape((targets.shape[0], 1, 6))
         labels, boxes = self.convert(actual)
-        boxes = boxes #/ 28
+        boxes = boxes/self.pixel_shape[0]
         batch_size = predicted_locs.size(0)
         n_priors = self.priors_cxcy.size(0)
         n_classes = predicted_scores.size(2)
@@ -321,14 +320,14 @@ class MultiBoxLoss(LocalizatioLoss):
                 int(actual[i, 0]), predicted_scores[i, prior_for_each_object[0], int(actual[i, 0])]])
             prioris.append([torch.cat([pred_sc,self.priors_xy[prior_for_each_object[0]]],dim=0)])
 
-            #pred_=vison_utils.cxcy_to_xy(vison_utils.gcxgcy_to_cxcy(predicted_locs[i], self.priors_cxcy))
-            ##pred_ = torch.clamp(pred_, 0, 1)
-            #pred_locs.append(pred_[prior_for_each_object[0]].tolist())
+            pred_=vison_utils.cxcy_to_xy(vison_utils.gcxgcy_to_cxcy(predicted_locs[i], self.priors_cxcy))
+            pred_ = torch.clamp(pred_, 0, 1)
+            pred_locs.append(pred_[prior_for_each_object[0]].tolist())
             overlaps.append(overlap[:,prior_for_each_object[0]])
 
             prioris,overlaps=list(map(list,prioris)),list(map(list,overlaps))
 
             predicted_s.append(predicted_scores[i,prior_for_each_object[0],int(actual[i,0])].detach())
-        return prioris,torch.tensor(overlaps),torch.tensor( predicted_s),torch.floor(torch.tensor(pred_locs)*28)
+        return prioris,torch.tensor(overlaps),torch.tensor( predicted_s),torch.floor(torch.tensor(pred_locs)*28*4)
 
 

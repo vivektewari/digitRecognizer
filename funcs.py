@@ -325,11 +325,12 @@ class clusterring():
 
 
 class DataCreation:
-    def __init__(self, data_path=None, image_path_=None):
+    def __init__(self, data_path=None, image_path_=None,max_image=100):
         self.data_path = data_path
         self.image_path = image_path_
         self.to_csv = True
         self.start_time=time.time()
+        self.max_image=max_image
 
     def darker(self, data):
 
@@ -444,14 +445,24 @@ class DataCreation:
             x2, y2 = min((np.trim_zeros(x2))),min((np.trim_zeros(y2)))
             x1,y1,x2,y2 = x1, y1, data.shape[0] - x2-1, data.shape[1] - y2-1
             return [x1,y1,x2,y2]
-    def draw_box(self,data,x1=0,y1=0,x2=0,y2=0,dim=1,color_intensity=200,save_loc=None,message= ""):
-        x1,x2,y1,y2=int(x1),int(x2),int(y1),int(y2),
-        data[x1, y1:y2, dim], data[x2, y1:y2, dim], data[x1:x2, y1,dim], data[x1:x2, y2, dim] = color_intensity, \
-                                                             color_intensity ,color_intensity,color_intensity
-        data[x1, y1:y1+5, dim], data[x1+5, y1:y1+5, dim], data[x1:x1+5, y1, dim], data[x1:x1+5, y1+5, dim] = color_intensity, \
-                                                                                                 color_intensity, color_intensity, color_intensity
-        cv2.imwrite(save_loc,data)
-    def draw_box(self,locs,data=None,color_intensity=[(0,200,0)],scale=None,save_loc=None,msg= None,imgscale=8):
+
+    def draw_box(self,x1=0,y1=0,x2=0,y2=0,data=None,dim=1,color_intensity=(0,200,0),save_loc=None,msg= None):
+        torch.set_printoptions(precision=2)
+        x1,x2,y1,y2=int(x1),int(x2),int(y1),int(y2)
+        if data is not None :
+            cv2.imwrite(save_loc, data)
+        img = cv2.imread(save_loc)
+
+        cv2.rectangle(img, (y1, x1), (y2, x2), color_intensity,0)
+        if msg is not None:
+            w=9
+            h=3
+            #cv2.rectangle(img, (y1, x1), (y1 + w, x1 + h), color_intensity, 0)
+            text = "{:.2f}: {:.2f}".format(float(msg[0]), float(msg[1]))
+            #cv2.putText(img, text, (y1, x1),fontFace=cv2.FONT_HERSHEY_SIMPLEX,fontScale=1, color=(0,100,0),thickness= 0)
+            save_loc=save_loc.replace('.png','_pred_'+text+'.png')
+        cv2.imwrite(save_loc,img)
+    def draw_box(self,locs,data=None,color_intensity=[(0,200,0)],scale=None,save_loc=None,msg= None,imgscale=2):
         """
 
         :param locs: [[prediction,prob,x1,y1,x2,y2],...] |each terminal boxes will have  prediction,prob,x1,y1,x2,y2
@@ -464,6 +475,7 @@ class DataCreation:
         """
         torch.set_printoptions(precision=2)
         img=None
+        imgscale=1
         scale=imgscale*scale
         for i in range(len(locs)):
          for j in range(len(locs[i])):
@@ -476,13 +488,13 @@ class DataCreation:
             if img is  None:
                 img = cv2.imread(save_loc)
                 img = cv2.resize(img,
-                                 dsize=(28*imgscale, 28*imgscale)
+                                 dsize=(28*4*imgscale, 28*4*imgscale)
                                  , interpolation=cv2.INTER_CUBIC)
 
             img=cv2.rectangle(img, (y1, x1), (y2, x2), color_intensity[i],0)
-            text = "{:.2f}: {:.2f}".format(float(actual), float(pred))
+            text = "{:.2f} : {:.2f}".format(float(actual), float(pred))
             img =  cv2.putText(img, text,org= (y1, x1),fontFace=cv2.FONT_HERSHEY_SIMPLEX,fontScale=0.2, color=(255,255,255),thickness=1,lineType= cv2.LINE_AA,bottomLeftOrigin = False)
-        save_loc=save_loc.replace('.png','_pred_'+text+'.png')
+        save_loc=save_loc.replace('.png','_pred_'+'.png')
         cv2.imwrite(save_loc,img)
 
     def rub_box(self,data,dim=1,color_intensity=0,save_loc=None):
@@ -504,7 +516,7 @@ class DataCreation:
             if len(temp.shape)<3 :
                 temp=np.expand_dims(temp,axis=2)
                 temp=np.concatenate((temp,np.zeros(temp.shape),np.zeros(temp.shape)),axis=2)
-            if self.image_path is not None: self.draw_box(x1,y1,x2,y2,data=temp,save_loc=self.image_path +'/'+str(i)+'_'+str(data_temp['label'])+".png")
+            if self.image_path is not None and i<self.max_image: self.draw_box(x1,y1,x2,y2,data=temp,save_loc=self.image_path +'/'+str(i)+'_'+str(data_temp['label'])+".png")
             if i % 500 == 0:
                 print(str(i) + " completed")
                 print("time elapsed: " + str(time.time() - self.start_time))

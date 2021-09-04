@@ -45,8 +45,8 @@ class Model3:
     pools = [2, 2,2,1]
     fc1_p = [256, 14]
 class Model3_p:
-    channels = [31,65]
-    input_image_dim = (28*4, 28*4)
+    channels = [31,65,128]
+    input_image_dim = (28, 28)
     start_channel = 1
     convs = [5 ,5,2]#5,5,3
     pads = [0, 0,0,0]
@@ -62,6 +62,24 @@ class Model3_p_28:
     strides = [1,1, 1,1]
     pools = [2, 2,2,1]
     fc1_p = [None,45*(14+1)]
+class Model3_p_112:
+    channels = [31,65,128]
+    input_image_dim = (28*4, 28*4)
+    start_channel = 1
+    convs = [5 ,5,3,3,2]#5,5,3
+    pads = [0, 0,0,0,0]
+    strides = [1,1, 1,1,1]
+    pools = [2, 2,2,2,1]#receptive 6,
+    fc1_p = [None,1100*(14+1)]#adding more grid
+class Model3_p_112_large:
+    channels = [31,65,128,256,512,1024,2048,4096]
+    input_image_dim = (28*4, 28*4)
+    start_channel = 1
+    convs = [5 ,5,3,3,2,2,2,2]#5,5,3
+    pads = [0, 0,0,0,0]
+    strides = [1,1, 1,1,1,1,1,1,1]
+    pools = [2, 2,2,2,2,2,2,1,1,1]#receptive 6,
+    fc1_p = [None,1100*(14+1)]#adding more grid
 class Model4:
         channels = [11, 22]
         input_image_dim = (28, 28)
