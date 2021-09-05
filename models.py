@@ -79,7 +79,7 @@ class FeatureExtractor(nn.Module):
 
     @staticmethod
     def init_layer(layer):
-        nn.init.xavier_uniform_(layer.weight)
+        nn.init.xavier_uniform_(layer.weight*10)
         if hasattr(layer, "bias"):
             if layer.bias is not None:
                 layer.bias.data.fill_(0.)

@@ -71,7 +71,7 @@ class MultiBoxLoss(LocalizatioLoss):
     (2) a confidence loss for the predicted class scores.
     """
 
-    def __init__(self, priors_cxcy=None, threshold=0, neg_pos_ratio=0, alpha=0.,pixel_shape=(28,28),n_class=None):
+    def __init__(self, priors_cxcy=None, threshold=0.6, neg_pos_ratio=0, alpha=0.,pixel_shape=(28,28),n_class=None):
         super(MultiBoxLoss, self).__init__()
         if priors_cxcy is None:
             self.priors_cxcy = self.create_prior_boxes()
