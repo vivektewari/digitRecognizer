@@ -178,10 +178,10 @@ class MetricsCallback_loc(Callback):
 
 
 
-        if state.loader_batch_step==1 and (state.global_epoch_step-1)%5 ==0 and state.is_train_loader:
+        if state.loader_batch_step==1 and (state.global_epoch_step)%1 ==0 and state.is_train_loader:
             preds = state.batch['logits']
             pred_class = torch.argmax(state.batch['logits'][:, :10], dim=1)
-            max_prob=torch.max(state.batch['logits'][:, :10], dim=1)[0]
+            #max_prob=torch.max(state.batch['logits'][:, :10], dim=1)[0]
             prioris,overlaps,prob,pred_locs=state.criterion.visualize_image(preds,state.batch['targets'])
             pred_locs=self.pred_boxes(model_output,[i for i in range(11)])
             #self.rub_pred()
@@ -201,7 +201,7 @@ class MetricsCallback_loc(Callback):
         return_boxes=[]
         for i in range(batch_size):
             pred_boxes_i = self.vision_utils.non_max_suppression(pred_boxes[i], classes, background_class=10,
-                                                                 pred_thresh=0.5, overlap_thresh=0.5)
+                                                                 pred_thresh=0.0, overlap_thresh=0.5)
             return_boxes.append(pred_boxes_i)
 
         return return_boxes
