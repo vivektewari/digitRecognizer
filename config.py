@@ -31,7 +31,7 @@ loss_func =MultiBoxLoss(pixel_shape=(28*4,28*4),n_class=10)  #BCELoss pixel_shap
 model_param =  Model3_p_112 #Model3_p_28
 model =FTWithLocalization_prior
 pre_trained_model ="/home/pooja/PycharmProjects/digitRecognizer/fold0/checkpoints/last.pth"
-#pre_trained_model =None
+pre_trained_model = None
 #'/home/pooja/PycharmProjects/digitRecognizer/rough/localization/fold0/checkpoints/train.17.pth'
 
 
