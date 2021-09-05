@@ -201,7 +201,7 @@ class MetricsCallback_loc(Callback):
         return_boxes=[]
         for i in range(batch_size):
             pred_boxes_i = self.vision_utils.non_max_suppression(pred_boxes[i], classes, background_class=10,
-                                                                 pred_thresh=0.0, overlap_thresh=0.5)
+                                                                 pred_thresh=0.9, overlap_thresh=0)
             return_boxes.append(pred_boxes_i)
 
         return return_boxes
